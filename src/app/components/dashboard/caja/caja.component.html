@@ -1,0 +1,35 @@
+<div class="page-root">
+  <header class="page-header">
+    <h2>Caja</h2>
+    <p class="subtitle">Operaciones de caja: apertura, cierre y movimientos.</p>
+  </header>
+
+  <section class="content">
+    <p>Gestión de caja. Abre o cierra la caja del día y revisa movimientos.</p>
+    <div *ngIf="current; else openBlock">
+      <div class="current-info">
+        <div><strong>Estado:</strong> {{ (current.estado || 'ABIERTA') }}</div>
+        <div><strong>Monto inicial:</strong> ${{ current.montoInicial }}</div>
+        <div><strong>Saldo actual:</strong> ${{ (current.montoActual ?? current.saldoActual ?? 0) }}</div>
+        <div><strong>Fecha de apertura:</strong> {{ current.fechaApertura | date:'short' }}</div>
+        <div *ngIf="current.fechaCierre"><strong>Fecha de cierre:</strong> {{ current.fechaCierre | date:'short' }}</div>
+      </div>
+      <div class="close-block">
+        <label for="closingAmount">Monto de cierre</label>
+        <input id="closingAmount" type="number" [(ngModel)]="closingAmount" />
+        <button class="btn primary" (click)="closeCaja()" [disabled]="loading">Cerrar caja</button>
+      </div>
+    </div>
+    <ng-template #openBlock>
+      <div class="open-block">
+        <label for="openingAmount">Monto inicial</label>
+        <input id="openingAmount" type="number" [(ngModel)]="openingAmount" />
+        <button class="btn primary" (click)="openCaja()" [disabled]="loading">Abrir caja</button>
+      </div>
+    </ng-template>
+    <div class="actions" style="margin-top:1rem">
+      <a routerLink="/dashboard/pos" class="btn primary">Ir a Punto de Venta</a>
+      <a routerLink="/dashboard/reports" class="btn">Ver Reportes</a>
+    </div>
+  </section>
+</div>

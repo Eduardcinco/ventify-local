@@ -1,0 +1,57 @@
+<div class="product-form">
+  <h2 *ngIf="!isEdit">Agregar producto</h2>
+  <h2 *ngIf="isEdit">Editar producto</h2>
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <div>
+      <label for="nombre">Nombre</label>
+      <input id="nombre" formControlName="nombre" />
+    </div>
+    <div>
+      <label for="descripcion">Descripción</label>
+      <input id="descripcion" formControlName="descripcion" />
+    </div>
+    <div>
+      <label for="codigoBarras">Código de barras / SKU</label>
+      <input id="codigoBarras" formControlName="codigoBarras" />
+    </div>
+    <div>
+      <label for="precioCompra">Precio compra</label>
+      <input id="precioCompra" type="number" formControlName="precioCompra" />
+    </div>
+    <div>
+      <label for="precioVenta">Precio venta</label>
+      <input id="precioVenta" type="number" formControlName="precioVenta" />
+    </div>
+    <div>
+      <label for="stockActual">Stock actual</label>
+      <input id="stockActual" type="number" formControlName="stockActual" />
+    </div>
+    <div>
+      <label for="stockMinimo">Stock mínimo</label>
+      <input id="stockMinimo" type="number" formControlName="stockMinimo" />
+    </div>
+
+    <div>
+      <label>Categoría</label>
+      <ng-container *ngIf="!loadingCategories; else loadingCats">
+        <div class="category-tree">
+          <ng-container *ngFor="let cat of categoriesTree">
+            <app-category-node [node]="cat" [form]="form" (addCategory)="onAddCategory($event)"></app-category-node>
+          </ng-container>
+        </div>
+        <div *ngIf="form.value.categoryId">
+          <small>Seleccionado: {{ getCategoryPath(findCategoryById(form.value.categoryId)) }}</small>
+        </div>
+        <button type="button" (click)="onAddCategory(null)">Agregar categoría principal</button>
+      </ng-container>
+      <ng-template #loadingCats>
+        <span>Cargando categorías...</span>
+      </ng-template>
+    </div>
+
+    <div class="actions">
+      <button type="submit" [disabled]="form.invalid">{{ isEdit ? 'Guardar' : 'Crear' }}</button>
+      <button type="button" (click)="cancel()">Cancelar</button>
+    </div>
+  </form>
+</div>

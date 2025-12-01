@@ -1,0 +1,58 @@
+<aside class="sidebar" [class.closed]="!isOpen">
+  <div class="brand-section">
+    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M5 10h22M8 6h16M6 14h20v12a2 2 0 01-2 2H8a2 2 0 01-2-2V14z"/>
+    </svg>
+    <div class="brand">Ventify</div>
+  </div>
+  <nav>
+    <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeOnSmall()">
+      <span class="nav-icon">🏠</span>
+      <span>Inicio</span>
+    </a>
+    <a routerLink="/dashboard/inventory" routerLinkActive="active" (click)="closeOnSmall()" class="with-badge">
+      <span class="nav-icon">📦</span>
+      <span>Inventario</span>
+      <span *ngIf="stockBajoCount > 0" 
+            class="badge-danger" 
+            [class.urgent]="stockBajoCount >= 5"
+            [title]="stockBajoCount + ' productos con stock bajo'">
+        {{ stockBajoCount }}
+      </span>
+    </a>
+    <a routerLink="/dashboard/clientes" routerLinkActive="active" (click)="closeOnSmall()">
+      <span class="nav-icon">👥</span>
+      <span>Clientes</span>
+    </a>
+    <a routerLink="/dashboard/pos" routerLinkActive="active" (click)="closeOnSmall()">
+      <span class="nav-icon">💳</span>
+      <span>Punto de Venta</span>
+    </a>
+    <a routerLink="/dashboard/caja" routerLinkActive="active" (click)="closeOnSmall()">
+      <span class="nav-icon">💰</span>
+      <span>Caja</span>
+    </a>
+    <a routerLink="/dashboard/reports" routerLinkActive="active" (click)="closeOnSmall()">
+      <span class="nav-icon">📊</span>
+      <span>Reportes</span>
+    </a>
+    <a routerLink="/dashboard/settings" routerLinkActive="active" (click)="closeOnSmall()">
+      <span class="nav-icon">⚙️</span>
+      <span>Configuración</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+      <div class="user-info">
+        <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Perfil" class="user-avatar-img">
+        <div *ngIf="!fotoPerfilUrl" class="user-avatar-default">{{ getUserInitialsInternal() }}</div>
+      <div class="user-details">
+          <div class="user-name">{{ getUserDisplayName() }}</div>
+          <div class="user-role" [class.dueno]="isDueno()" [class.empleado]="!isDueno()">{{ getRoleLabel() }}</div>
+      </div>
+    </div>
+      <button class="logout-btn" (click)="performLogout()" title="Cerrar sesión">
+        <span class="logout-icon">🚪</span>
+        <span>Cerrar sesión</span>
+      </button>
+  </div>
+</aside>

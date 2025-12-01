@@ -1,0 +1,9 @@
+.product-form { max-width: 800px; margin: 20px auto; padding: 0 1rem; }
+.product-form h2 { color: #2c3e50; margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700; }
+.product-form form { background: var(--card); padding: 2rem; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; }
+.product-form label { display:block; margin-bottom:0.5rem; font-weight:600; color:#2c3e50; font-size:0.9rem }
+.product-form input, .product-form select { width:100%; padding:0.75rem 1rem; margin-bottom:1rem; border-radius:10px; border: 2px solid #e9ecef; transition: all 0.2s ease; }
+.product-form input:focus, .product-form select:focus { border-color: #3498db; box-shadow: 0 0 0 3px rgba(52,152,219,0.1); }
+.product-form .actions { display:flex; gap:0.75rem; align-items:center; margin-top:1.5rem; }
+.product-form button { padding:0.75rem 1.5rem; border-radius:10px; font-weight:600; font-size:0.95rem; }
+.product-form .category-tree { max-height:240px; overflow:auto; padding:1rem; border-radius:10px; border:2px solid #e9ecef; background:#f8f9fa; margin-bottom:1rem }

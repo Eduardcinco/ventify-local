@@ -1,0 +1,182 @@
+<div class="pos-container">
+  <!-- ALERTA SI NO HAY CAJA ABIERTA -->
+  <div *ngIf="!cajaState.abierta" class="alert-warning">
+    <strong>⚠️ No hay caja abierta</strong>
+    <p>Debes abrir una caja antes de realizar ventas. <a routerLink="/dashboard/caja">Ir a Caja</a></p>
+  </div>
+
+  <div class="pos-root">
+    <!-- PANEL IZQUIERDO: PRODUCTOS -->
+    <div class="pos-left">
+      <div class="pos-header">
+        <h4>Productos Disponibles</h4>
+        <span class="product-count">{{ products.length }} productos</span>
+      </div>
+
+      <!-- BÚSQUEDA AVANZADA -->
+      <div class="search-bar">
+        <input 
+          type="text" 
+          placeholder="🔍 Buscar por nombre, ID o código de barras..." 
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="searchProducts()"
+          class="search-input"
+        />
+        <button *ngIf="searchTerm" class="clear-search" (click)="searchTerm=''; searchProducts()">✖</button>
+      </div>
+
+      <!-- LISTA DE PRODUCTOS -->
+      <div class="products-list">
+        <div class="product-item" *ngFor="let p of products">
+          <div class="product-info">
+            <div class="product-name">{{ p.nombre || p.name }}</div>
+            <div class="product-details">
+              <span class="product-price">${{ p.precioVenta || p.price }}</span>
+              <span class="product-stock" [class.low]="(p.stock || p.cantidadDisponible) < 10">
+                Stock: {{ p.stock || p.cantidadDisponible || 0 }}
+              </span>
+            </div>
+            <div class="product-meta" *ngIf="p.codigoBarras || p.id">
+              <small *ngIf="p.codigoBarras">📊 {{ p.codigoBarras }}</small>
+              <small>ID: {{ p.id }}</small>
+            </div>
+          </div>
+          <button 
+            class="btn-add" 
+            (click)="add(p)"
+            [disabled]="(p.stock || p.cantidadDisponible) <= 0"
+          >
+            {{ (p.stock || p.cantidadDisponible) > 0 ? '+ Agregar' : 'Sin stock' }}
+          </button>
+        </div>
+
+        <div *ngIf="products.length === 0" class="empty-products">
+          <p>{{ searchTerm ? 'No se encontraron productos' : 'No hay productos disponibles' }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL DERECHO: CARRITO Y PAGO -->
+    <div class="pos-right">
+      <div class="pos-header">
+        <h4>🛒 Carrito de Compra</h4>
+        <div *ngIf="cajaState.abierta && cajaState.caja?.id" class="caja-status">
+          <small>
+            Caja abierta (ID: {{ cajaState.caja.id }}) · Saldo: {{ cajaState.caja.montoActual | currency:'MXN' }}
+          </small>
+        </div>
+        <button *ngIf="cart.length > 0" class="btn-clear-cart" (click)="clearCart()">Vaciar</button>
+      </div>
+
+      <!-- CARRITO -->
+      <div class="cart-container">
+        <div *ngIf="cart.length === 0" class="empty-cart">
+          <p>Carrito vacío</p>
+          <small>Agrega productos desde el panel izquierdo</small>
+        </div>
+
+        <div class="cart-items" *ngIf="cart.length > 0">
+          <div class="cart-item" *ngFor="let item of cart; let i = index">
+            <div class="cart-item-info">
+              <div class="cart-item-name">{{ item.nombre || item.name }}</div>
+              <div class="cart-item-price">${{ item.precioUnitario || item.precioVenta || item.price }} c/u</div>
+            </div>
+            
+            <div class="cart-item-controls">
+              <div class="qty-control">
+                <button (click)="updateQty(item, item.qty - 1)">-</button>
+                <input 
+                  type="number" 
+                  [(ngModel)]="item.qty" 
+                  (ngModelChange)="updateQty(item, $event)"
+                  min="1"
+                  [max]="item.stock || item.cantidadDisponible"
+                />
+                <button (click)="updateQty(item, item.qty + 1)">+</button>
+              </div>
+              
+              <div class="cart-item-total">
+                ${{ ((item.precioUnitario || item.precioVenta || item.price) * item.qty).toFixed(2) }}
+              </div>
+              
+              <button class="btn-remove" (click)="removeItem(i)" title="Eliminar">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOTAL -->
+      <div class="cart-total">
+        <div class="total-row">
+          <span class="total-label">Subtotal:</span>
+          <span class="total-value">${{ total().toFixed(2) }}</span>
+        </div>
+        <div class="total-row final">
+          <span class="total-label">Total a Pagar:</span>
+          <span class="total-value">${{ total().toFixed(2) }}</span>
+        </div>
+      </div>
+
+      <!-- OPCIONES DE PAGO -->
+      <div class="checkout-section" *ngIf="cart.length > 0">
+        <h4>Información de Pago</h4>
+
+        <div class="form-group">
+          <label for="paymentMethod">Método de Pago</label>
+          <select id="paymentMethod" [(ngModel)]="paymentMethod" class="select-input">
+            <option value="efectivo">💵 Efectivo</option>
+            <option value="tarjeta">💳 Tarjeta</option>
+            <option value="credito">📋 Crédito</option>
+            <option value="transferencia">🏦 Transferencia</option>
+          </select>
+        </div>
+
+        <!-- CÁLCULO DE CAMBIO (solo efectivo) -->
+        <div class="payment-calc" *ngIf="paymentMethod === 'efectivo'">
+          <div class="form-group">
+            <label for="montoRecibido">Monto Recibido</label>
+            <input 
+              id="montoRecibido" 
+              type="number" 
+              [(ngModel)]="montoRecibido" 
+              min="0" 
+              step="0.01"
+              placeholder="0.00"
+              class="money-input"
+            />
+          </div>
+
+          <div class="change-display" *ngIf="montoRecibido > 0">
+            <div class="change-row" *ngIf="cambio > 0">
+              <span>Cambio a devolver:</span>
+              <span class="change-amount success">${{ cambio.toFixed(2) }}</span>
+            </div>
+            <div class="change-row" *ngIf="faltante > 0">
+              <span>Falta por recibir:</span>
+              <span class="change-amount error">${{ faltante.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="clienteId">Cliente (Opcional)</label>
+          <input 
+            id="clienteId" 
+            type="number" 
+            [(ngModel)]="clienteId" 
+            placeholder="ID del cliente"
+            class="text-input"
+          />
+        </div>
+
+        <button 
+          class="btn-checkout" 
+          (click)="createSale()" 
+          [disabled]="loading || !cajaState.abierta || cart.length === 0"
+        >
+          {{ loading ? '⏳ Procesando...' : '✅ Finalizar Venta' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

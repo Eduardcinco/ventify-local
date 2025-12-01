@@ -1,0 +1,23 @@
+<div class="reports-root">
+  <h3>Reportes</h3>
+
+  <!-- Ventas Section -->
+  <div class="report-section">
+    <h4>Reporte de Ventas</h4>
+    <div class="chart-placeholder">
+      <p>Ventas por Día: {{ ventasPorDia | json }}</p>
+      <p>Ventas por Semana: {{ ventasPorSemana | json }}</p>
+      <p>Ventas por Mes: {{ ventasPorMes | json }}</p>
+    </div>
+    <button class="btn" (click)="downloadPdf('ventas')">Descargar PDF de Ventas</button>
+  </div>
+
+  <!-- Inventario Section -->
+  <div class="report-section">
+    <h4>Reporte de Inventario</h4>
+    <div class="chart-placeholder">
+      <p>Inventario Actual: {{ inventario | json }}</p>
+    </div>
+    <button class="btn" (click)="downloadPdf('inventario')">Descargar PDF de Inventario</button>
+  </div>
+</div>

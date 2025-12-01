@@ -1,0 +1,222 @@
+<div class="clientes-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <h1>Clientes</h1>
+      <p class="subtitle">Gestión de clientes y cuentas por cobrar</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-toggle" (click)="toggleInactivos()" [class.active]="showInactivos">
+        {{ showInactivos ? '👁️ Ver Activos' : '👁️‍🗨️ Ver Inactivos' }}
+      </button>
+      <button class="btn-primary" (click)="openForm()">
+        <span class="btn-icon">➕</span>
+        Agregar Cliente
+      </button>
+    </div>
+  </div>
+
+  <!-- Buscador -->
+  <div class="search-bar">
+    <input 
+      type="text" 
+      placeholder="Buscar por nombre, teléfono o RFC..."
+      (input)="filterClientes($any($event.target).value)"
+      class="search-input"
+    >
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Cargando clientes...</p>
+  </div>
+
+  <!-- Tabla de Clientes -->
+  <div *ngIf="!loading && filteredClientes.length > 0" class="table-container">
+    <table class="clientes-table">
+      <thead>
+        <tr>
+          <th>Nombre Completo</th>
+          <th>Teléfono</th>
+          <th>RFC</th>
+          <th>Dirección</th>
+          <th>Límite Crédito</th>
+          <th>Saldo Actual</th>
+          <th>Disponible</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let cliente of filteredClientes" [class.inactive]="!cliente.activo">
+          <!-- Nombre -->
+          <td>
+            <div *ngIf="!isEditing(cliente.id, 'nombreCompleto')" 
+                 (dblclick)="startEdit(cliente.id, 'nombreCompleto', cliente.nombreCompleto)"
+                 class="editable-cell">
+              {{ cliente.nombreCompleto }}
+            </div>
+            <div *ngIf="isEditing(cliente.id, 'nombreCompleto')" class="inline-edit">
+              <input [(ngModel)]="tempValue" class="inline-input" (keyup.enter)="saveInlineEdit(cliente)" (keyup.escape)="cancelEdit()">
+              <button (click)="saveInlineEdit(cliente)" class="btn-save-inline">✓</button>
+              <button (click)="cancelEdit()" class="btn-cancel-inline">✕</button>
+            </div>
+          </td>
+
+          <!-- Teléfono -->
+          <td>
+            <div *ngIf="!isEditing(cliente.id, 'telefono')" 
+                 (dblclick)="startEdit(cliente.id, 'telefono', cliente.telefono)"
+                 class="editable-cell">
+              {{ cliente.telefono }}
+            </div>
+            <div *ngIf="isEditing(cliente.id, 'telefono')" class="inline-edit">
+              <input [(ngModel)]="tempValue" class="inline-input" (keyup.enter)="saveInlineEdit(cliente)" (keyup.escape)="cancelEdit()">
+              <button (click)="saveInlineEdit(cliente)" class="btn-save-inline">✓</button>
+              <button (click)="cancelEdit()" class="btn-cancel-inline">✕</button>
+            </div>
+          </td>
+
+          <!-- RFC -->
+          <td>
+            <div *ngIf="!isEditing(cliente.id, 'rfc')" 
+                 (dblclick)="startEdit(cliente.id, 'rfc', cliente.rfc || '')"
+                 class="editable-cell">
+              {{ cliente.rfc || '—' }}
+            </div>
+            <div *ngIf="isEditing(cliente.id, 'rfc')" class="inline-edit">
+              <input [(ngModel)]="tempValue" class="inline-input" (keyup.enter)="saveInlineEdit(cliente)" (keyup.escape)="cancelEdit()">
+              <button (click)="saveInlineEdit(cliente)" class="btn-save-inline">✓</button>
+              <button (click)="cancelEdit()" class="btn-cancel-inline">✕</button>
+            </div>
+          </td>
+
+          <!-- Dirección -->
+          <td>
+            <div *ngIf="!isEditing(cliente.id, 'direccion')" 
+                 (dblclick)="startEdit(cliente.id, 'direccion', cliente.direccion || '')"
+                 class="editable-cell">
+              {{ cliente.direccion || '—' }}
+            </div>
+            <div *ngIf="isEditing(cliente.id, 'direccion')" class="inline-edit">
+              <input [(ngModel)]="tempValue" class="inline-input" (keyup.enter)="saveInlineEdit(cliente)" (keyup.escape)="cancelEdit()">
+              <button (click)="saveInlineEdit(cliente)" class="btn-save-inline">✓</button>
+              <button (click)="cancelEdit()" class="btn-cancel-inline">✕</button>
+            </div>
+          </td>
+
+          <!-- Límite Crédito -->
+          <td>
+            <div *ngIf="!isEditing(cliente.id, 'limiteCredito')" 
+                 (dblclick)="startEdit(cliente.id, 'limiteCredito', cliente.limiteCredito)"
+                 class="editable-cell">
+              ${{ cliente.limiteCredito.toFixed(2) }}
+            </div>
+            <div *ngIf="isEditing(cliente.id, 'limiteCredito')" class="inline-edit">
+              <input type="number" [(ngModel)]="tempValue" class="inline-input" (keyup.enter)="saveInlineEdit(cliente)" (keyup.escape)="cancelEdit()">
+              <button (click)="saveInlineEdit(cliente)" class="btn-save-inline">✓</button>
+              <button (click)="cancelEdit()" class="btn-cancel-inline">✕</button>
+            </div>
+          </td>
+
+          <!-- Saldo Actual -->
+          <td class="text-right" [class.text-danger]="cliente.saldoActual > 0">
+            ${{ cliente.saldoActual.toFixed(2) }}
+          </td>
+
+          <!-- Disponible -->
+          <td class="text-right" [class.text-success]="cliente.limiteCredito - cliente.saldoActual > 0">
+            ${{ (cliente.limiteCredito - cliente.saldoActual).toFixed(2) }}
+          </td>
+
+          <!-- Estado -->
+          <td>
+            <span class="badge" [class.badge-success]="cliente.activo" [class.badge-danger]="!cliente.activo">
+              {{ cliente.activo ? 'Activo' : 'Inactivo' }}
+            </span>
+          </td>
+
+          <!-- Acciones -->
+          <td class="actions-cell">
+            <button *ngIf="cliente.activo" (click)="openForm(cliente)" class="btn-icon-action" title="Editar">
+              ✏️
+            </button>
+            <button *ngIf="cliente.activo" (click)="deleteCliente(cliente)" class="btn-icon-action danger" title="Desactivar">
+              🗑️
+            </button>
+            <button *ngIf="!cliente.activo" (click)="reactivarCliente(cliente)" class="btn-icon-action success" title="Reactivar">
+              ♻️
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && filteredClientes.length === 0" class="empty-state">
+    <div class="empty-icon">👥</div>
+    <h3>{{ showInactivos ? 'No hay clientes inactivos' : 'No hay clientes registrados' }}</h3>
+    <p>{{ showInactivos ? 'Todos tus clientes están activos.' : 'Agrega tu primer cliente para comenzar.' }}</p>
+    <button *ngIf="!showInactivos" class="btn-primary" (click)="openForm()">
+      Agregar Cliente
+    </button>
+  </div>
+
+  <!-- Modal Formulario -->
+  <div *ngIf="showForm" class="modal-overlay" (click)="closeForm()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ editingId ? 'Editar Cliente' : 'Nuevo Cliente' }}</h2>
+        <button class="btn-close" (click)="closeForm()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre Completo *</label>
+            <input type="text" [(ngModel)]="form.nombreCompleto" class="form-input" placeholder="Juan Pérez García">
+          </div>
+
+          <div class="form-group">
+            <label>Teléfono * (10 dígitos)</label>
+            <input type="tel" [(ngModel)]="form.telefono" class="form-input" placeholder="5551234567" maxlength="10">
+          </div>
+
+          <div class="form-group">
+            <label>Correo Electrónico</label>
+            <input type="email" [(ngModel)]="form.correo" class="form-input" placeholder="cliente@ejemplo.com">
+          </div>
+
+          <div class="form-group">
+            <label>RFC</label>
+            <input type="text" [(ngModel)]="form.rfc" class="form-input" placeholder="XAXX010101000" maxlength="13">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Dirección</label>
+            <input type="text" [(ngModel)]="form.direccion" class="form-input" placeholder="Calle, Número, Colonia, Ciudad">
+          </div>
+
+          <div class="form-group">
+            <label>Límite de Crédito *</label>
+            <input type="number" [(ngModel)]="form.limiteCredito" class="form-input" min="0" step="0.01">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Notas</label>
+            <textarea [(ngModel)]="form.notas" class="form-textarea" rows="3" placeholder="Observaciones adicionales..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeForm()">Cancelar</button>
+        <button class="btn-primary" (click)="saveCliente()">
+          {{ editingId ? 'Actualizar' : 'Crear' }} Cliente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

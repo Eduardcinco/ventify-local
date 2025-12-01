@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # FRONT
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.0.
@@ -57,3 +58,6 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+=======
+# Front-Zona-30
+>>>>>>> 700f83372c31d80916587bc5f8d682dfa416817c

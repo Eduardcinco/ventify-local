@@ -6,11 +6,14 @@
     <div class="brand">Ventify</div>
   </div>
   <nav>
-    <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeOnSmall()">
+    <!-- 🏠 Inicio - visible para todos -->
+    <a *ngIf="permisos.verInicio" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeOnSmall()">
       <span class="nav-icon">🏠</span>
       <span>Inicio</span>
     </a>
-    <a routerLink="/dashboard/inventory" routerLinkActive="active" (click)="closeOnSmall()" class="with-badge">
+    
+    <!-- 📦 Inventario - Dueño, Gerente, Almacenista -->
+    <a *ngIf="permisos.verInventario" routerLink="/dashboard/inventory" routerLinkActive="active" (click)="closeOnSmall()" class="with-badge">
       <span class="nav-icon">📦</span>
       <span>Inventario</span>
       <span *ngIf="stockBajoCount > 0" 
@@ -20,23 +23,33 @@
         {{ stockBajoCount }}
       </span>
     </a>
-    <a routerLink="/dashboard/clientes" routerLinkActive="active" (click)="closeOnSmall()">
+    
+    <!-- 👥 Clientes - Dueño, Gerente -->
+    <a *ngIf="permisos.verClientes" routerLink="/dashboard/clientes" routerLinkActive="active" (click)="closeOnSmall()">
       <span class="nav-icon">👥</span>
       <span>Clientes</span>
     </a>
-    <a routerLink="/dashboard/pos" routerLinkActive="active" (click)="closeOnSmall()">
+    
+    <!-- 💳 Punto de Venta - Dueño, Gerente, Cajero -->
+    <a *ngIf="permisos.verPuntoVenta" routerLink="/dashboard/pos" routerLinkActive="active" (click)="closeOnSmall()">
       <span class="nav-icon">💳</span>
       <span>Punto de Venta</span>
     </a>
-    <a routerLink="/dashboard/caja" routerLinkActive="active" (click)="closeOnSmall()">
+    
+    <!-- 💰 Caja - Dueño, Gerente, Cajero -->
+    <a *ngIf="permisos.verCaja" routerLink="/dashboard/caja" routerLinkActive="active" (click)="closeOnSmall()">
       <span class="nav-icon">💰</span>
       <span>Caja</span>
     </a>
-    <a routerLink="/dashboard/reports" routerLinkActive="active" (click)="closeOnSmall()">
+    
+    <!-- 📊 Reportes - Dueño, Gerente, Cajero (cajero solo sus ventas del día) -->
+    <a *ngIf="permisos.verReportes" routerLink="/dashboard/reports" routerLinkActive="active" (click)="closeOnSmall()">
       <span class="nav-icon">📊</span>
       <span>Reportes</span>
     </a>
-    <a routerLink="/dashboard/settings" routerLinkActive="active" (click)="closeOnSmall()">
+    
+    <!-- ⚙️ Configuración - Dueño, Gerente -->
+    <a *ngIf="permisos.verConfiguracion" routerLink="/dashboard/settings" routerLinkActive="active" (click)="closeOnSmall()">
       <span class="nav-icon">⚙️</span>
       <span>Configuración</span>
     </a>
@@ -47,7 +60,13 @@
         <div *ngIf="!fotoPerfilUrl" class="user-avatar-default">{{ getUserInitialsInternal() }}</div>
       <div class="user-details">
           <div class="user-name">{{ getUserDisplayName() }}</div>
-          <div class="user-role" [class.dueno]="isDueno()" [class.empleado]="!isDueno()">{{ getRoleLabel() }}</div>
+          <div class="user-role" 
+               [class.dueno]="permissionsService.isDueno()" 
+               [class.gerente]="permissionsService.isGerente()"
+               [class.cajero]="permissionsService.isCajero()"
+               [class.almacenista]="permissionsService.isAlmacenista()">
+            {{ getRoleLabel() }}
+          </div>
       </div>
     </div>
       <button class="logout-btn" (click)="performLogout()" title="Cerrar sesión">

@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, Input } from '@angular/core';
 import { SidebarService } from '../../services/sidebar.service';
 import { AlertasService } from '../../services/alertas.service';
 import { AuthService } from '../../services/auth.service';
+import { PermissionsService, PermisosPorRol } from '../../services/permissions.service';
 import { Subscription } from 'rxjs';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -21,20 +22,43 @@ export class SidebarComponent implements OnInit, OnDestroy {
   sub!: Subscription;
   stockBajoCount = 0;
   private _alertaSub?: Subscription;
-    fotoPerfilUrl: string | null = null;
+  fotoPerfilUrl: string | null = null;
+  
+  // 🔐 Permisos del usuario actual
+  permisos: PermisosPorRol;
 
   constructor(
     private sidebarService: SidebarService,
-      private alertasService: AlertasService,
-      private authService: AuthService
-  ) {}
+    private alertasService: AlertasService,
+    private authService: AuthService,
+    public permissionsService: PermissionsService
+  ) {
+    // Inicializar permisos en el constructor
+    this.permisos = this.permissionsService.getPermisos();
+  }
 
+  private sessionSub?: Subscription;
+  
   ngOnInit(): void {
     this.sub = this.sidebarService.isOpen$.subscribe(v => (this.isOpen = v));
     this._alertaSub = this.alertasService.stockBajoCount.subscribe(count => {
       this.stockBajoCount = count;
     });
-      this.loadProfilePhoto();
+    this.loadProfilePhoto();
+    
+    // 🆕 Suscribirse a cambios de sesión para recargar permisos
+    // Esto actualiza el sidebar cuando refreshSession() trae permisosExtra del backend
+    this.sessionSub = this.authService.currentSession$.subscribe(session => {
+      if (session) {
+        this.permisos = this.permissionsService.getPermisos();
+        console.log('🔄 Sidebar: permisos actualizados', {
+          rol: session.rol,
+          extras: session.permisosExtra?.modulos || [],
+          verInventario: this.permisos.verInventario,
+          verConfiguracion: this.permisos.verConfiguracion
+        });
+      }
+    });
   }
 
     loadProfilePhoto(): void {
@@ -46,10 +70,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return this.authService.getUserName() || this.authService.getUserEmail() || 'Usuario';
     }
 
-    isDueno(): boolean { return this.authService.isDueno(); }
+    isDueno(): boolean { return this.permissionsService.isDueno(); }
 
     getRoleLabel(): string {
-      return this.isDueno() ? 'Dueño' : 'Empleado';
+      return this.permissionsService.getRolLabel();
     }
 
     getUserInitialsInternal(): string {
@@ -63,6 +87,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
     this._alertaSub?.unsubscribe();
+    this.sessionSub?.unsubscribe();
   }
 
   closeOnSmall() {

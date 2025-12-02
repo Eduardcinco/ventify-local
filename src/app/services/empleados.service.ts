@@ -19,6 +19,13 @@ export interface Empleado {
   fechaIngreso?: string;
   fotoPerfil?: string;
   password?: string; // Solo disponible después de reset o creación
+  // 🆕 Permisos extra temporales
+  permisosExtra?: {
+    modulos: string[];
+    asignadoPor?: string;
+    fechaAsignacion?: string;
+    nota?: string;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -56,6 +63,47 @@ export class EmpleadosService {
       ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
       : undefined;
     return this.http.post<{ correo: string; nuevaPassword: string }>(`${this.base}/${id}/reset-password`, {}, { headers });
+  }
+
+  /**
+   * Actualizar el rol de un empleado
+   */
+  updateRol(id: number, rol: string): Observable<void> {
+    const negocioId = this.biz.getNegocioId();
+    const headers = this.biz.shouldSendDebugHeader() && negocioId
+      ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
+      : undefined;
+    return this.http.put<void>(`${this.base}/${id}/rol`, { rol }, { headers });
+  }
+
+  /**
+   * 🆕 Actualizar permisos extra de un empleado
+   * Permite asignar módulos adicionales temporalmente sin cambiar el rol
+   */
+  updatePermisosExtra(id: number, permisosExtra: {
+    modulos: string[];
+    asignadoPor?: string;
+    nota?: string;
+  }): Observable<void> {
+    const negocioId = this.biz.getNegocioId();
+    const headers = this.biz.shouldSendDebugHeader() && negocioId
+      ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
+      : undefined;
+    return this.http.put<void>(`${this.base}/${id}/permisos-extra`, {
+      ...permisosExtra,
+      fechaAsignacion: new Date().toISOString()
+    }, { headers });
+  }
+
+  /**
+   * 🆕 Quitar todos los permisos extra de un empleado
+   */
+  clearPermisosExtra(id: number): Observable<void> {
+    const negocioId = this.biz.getNegocioId();
+    const headers = this.biz.shouldSendDebugHeader() && negocioId
+      ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
+      : undefined;
+    return this.http.delete<void>(`${this.base}/${id}/permisos-extra`, { headers });
   }
 
   /**

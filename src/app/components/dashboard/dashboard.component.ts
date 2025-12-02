@@ -41,6 +41,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.currentUser = this.getCurrentUser();
     this.loadProfilePhoto();
+    
+    // 🆕 Refrescar sesión desde el backend para obtener permisosExtra actualizados
+    // Esto permite que el empleado vea sus módulos extra sin re-login
+    this.authService.refreshSession().subscribe({
+      next: (session) => {
+        console.log('✅ Sesión actualizada con permisos:', session.permisosExtra?.modulos || []);
+      },
+      error: (err) => {
+        console.warn('⚠️ No se pudo refrescar sesión:', err.status);
+      }
+    });
+    
     this._sub = this.sidebarService.isOpen$.subscribe((isOpen: boolean) => {
       if (!isOpen) document.body.classList.add('sidebar-closed');
       else document.body.classList.remove('sidebar-closed');
@@ -138,8 +150,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   logout(): void {
     if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-      this.authService.logout();
-      this.router.navigate(['/']);
+      this.authService.logout().subscribe({
+        next: () => this.router.navigate(['/']),
+        error: () => this.router.navigate(['/']) // Navegar igual en caso de error
+      });
     }
   }
 }

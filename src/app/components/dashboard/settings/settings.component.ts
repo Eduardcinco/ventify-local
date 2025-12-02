@@ -5,6 +5,7 @@ import { AuthService } from '../../../services/auth.service';
 import { EmpleadosService, Empleado } from '../../../services/empleados.service';
 import { SettingsService } from '../../../services/settings.service';
 import { ToastService } from '../../../services/toast.service';
+import { PermissionsService, PermisosPorRol, ModuloExtra } from '../../../services/permissions.service';
 import { Router } from '@angular/router';
 
 @Component({
@@ -17,6 +18,9 @@ import { Router } from '@angular/router';
 export class SettingsComponent {
   // Tabs activas
   activeTab: 'branding' | 'negocio' | 'cuenta' | 'empleados' = 'branding';
+  
+  // 🔐 Permisos
+  permisos!: PermisosPorRol;
 
   // === 1. PERSONALIZACIÓN VISUAL ===
   branding = {
@@ -75,13 +79,42 @@ export class SettingsComponent {
   mostrarPassword: boolean = false;
   private timerInterval: any = null;
 
+  // 🛡️ Modal de permisos/rol
+  showModalPermisos = false;
+  empleadoSeleccionado: Empleado | null = null;
+  nuevoRol: string = '';
+  
+  // 🆕 Modal de permisos extra (módulos adicionales)
+  showModalExtras = false;
+  modulosSeleccionados: ModuloExtra[] = [];
+  notaPermisos: string = '';
+  
+  // 🆕 Modal de detalle de empleado
+  showModalEmpleado = false;
+  
+  // 🆕 Modal de editar empleado
+  showModalEditarEmpleado = false;
+  empleadoEditando: Empleado | null = null;
+  
+  // Módulos disponibles para asignar
+  modulosDisponibles: { id: ModuloExtra; nombre: string; icono: string; descripcion: string }[] = [
+    { id: 'inventario', nombre: 'Inventario', icono: '📦', descripcion: 'Ver productos, agregar stock, registrar mermas' },
+    { id: 'pos', nombre: 'Punto de Venta', icono: '🧾', descripcion: 'Realizar ventas, cobrar, imprimir tickets' },
+    { id: 'caja', nombre: 'Caja', icono: '💰', descripcion: 'Abrir/cerrar caja, ver movimientos' },
+    { id: 'reportes', nombre: 'Reportes', icono: '📊', descripcion: 'Ver reportes de ventas propias' },
+    { id: 'clientes', nombre: 'Clientes', icono: '👥', descripcion: 'Ver y gestionar clientes' }
+  ];
+
   constructor(
     private auth: AuthService,
     private empleadosService: EmpleadosService,
     private settingsService: SettingsService,
     private router: Router,
-    private toast: ToastService
-  ) {}
+    private toast: ToastService,
+    public permissionsService: PermissionsService
+  ) {
+    this.permisos = this.permissionsService.getPermisos();
+  }
 
   ngOnInit() {
     this.loadEmpleados();
@@ -97,7 +130,7 @@ export class SettingsComponent {
     }
   }
 
-  isDueno(): boolean { return this.auth.isDueno(); }
+  isDueno(): boolean { return this.permissionsService.isDueno(); }
 
   loadProfilePhoto() {
     // TODO: endpoint GET /api/usuarios/perfil para obtener fotoPerfilUrl
@@ -300,8 +333,9 @@ export class SettingsComponent {
     this.settingsService.cerrarSesiones().subscribe({
       next: () => {
         this.toast.info('Sesiones cerradas. Inicia sesión nuevamente.');
-        this.auth.logout();
-        this.router.navigate(['/login']);
+        this.auth.logout().subscribe(() => {
+          this.router.navigate(['/login']);
+        });
       },
       error: (e) => {
         console.error(e);
@@ -500,5 +534,237 @@ export class SettingsComponent {
         this.toast.warning('⏰ La contraseña temporal ha expirado por seguridad');
       }
     }, 1000);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🛡️ MODAL DE PERMISOS / CAMBIO DE ROL
+  // ═══════════════════════════════════════════════════════════
+
+  abrirModalPermisos(emp: Empleado) {
+    this.empleadoSeleccionado = emp;
+    this.nuevoRol = emp.rol || 'Cajero';
+    this.showModalPermisos = true;
+  }
+
+  cerrarModalPermisos() {
+    this.showModalPermisos = false;
+    this.empleadoSeleccionado = null;
+    this.nuevoRol = '';
+  }
+
+  getInitials(emp: Empleado): string {
+    if (!emp) return '?';
+    const nombre = emp.nombre || '';
+    const apellido = emp.apellido1 || '';
+    return (nombre.charAt(0) + apellido.charAt(0)).toUpperCase() || '?';
+  }
+
+  guardarNuevoRol() {
+    if (!this.empleadoSeleccionado || !this.nuevoRol) return;
+
+    const empId = this.empleadoSeleccionado.id;
+    
+    // Llamar al backend para actualizar el rol
+    this.empleadosService.updateRol(empId, this.nuevoRol).subscribe({
+      next: () => {
+        // Actualizar localmente
+        const emp = this.empleados.find(e => e.id === empId);
+        if (emp) {
+          emp.rol = this.nuevoRol;
+        }
+        this.toast.success(`Rol actualizado a ${this.nuevoRol}`);
+        this.cerrarModalPermisos();
+      },
+      error: (err) => {
+        console.error('Error actualizando rol:', err);
+        this.toast.error('Error al actualizar el rol');
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🆕 MODAL DE PERMISOS EXTRA (MÓDULOS ADICIONALES TEMPORALES)
+  // ═══════════════════════════════════════════════════════════
+
+  abrirModalExtras(emp: Empleado) {
+    this.empleadoSeleccionado = emp;
+    // Cargar módulos ya asignados
+    this.modulosSeleccionados = [...(emp.permisosExtra?.modulos || [])] as ModuloExtra[];
+    this.notaPermisos = emp.permisosExtra?.nota || '';
+    this.showModalExtras = true;
+  }
+
+  cerrarModalExtras() {
+    this.showModalExtras = false;
+    this.empleadoSeleccionado = null;
+    this.modulosSeleccionados = [];
+    this.notaPermisos = '';
+  }
+
+  toggleModulo(modulo: ModuloExtra) {
+    const idx = this.modulosSeleccionados.indexOf(modulo);
+    if (idx >= 0) {
+      this.modulosSeleccionados.splice(idx, 1);
+    } else {
+      this.modulosSeleccionados.push(modulo);
+    }
+  }
+
+  isModuloSelected(modulo: ModuloExtra): boolean {
+    return this.modulosSeleccionados.includes(modulo);
+  }
+
+  /**
+   * Verificar si un módulo ya está incluido en el rol base del empleado
+   */
+  moduloIncluidoEnRol(modulo: ModuloExtra, rol: string): boolean {
+    const rolNorm = (rol || '').toLowerCase();
+    
+    switch (modulo) {
+      case 'inventario':
+        return ['dueno', 'dueño', 'gerente', 'almacenista'].some(r => rolNorm.includes(r));
+      case 'pos':
+      case 'caja':
+        return ['dueno', 'dueño', 'gerente', 'cajero'].some(r => rolNorm.includes(r));
+      case 'reportes':
+        return ['dueno', 'dueño', 'gerente', 'cajero'].some(r => rolNorm.includes(r));
+      case 'clientes':
+        return ['dueno', 'dueño', 'gerente'].some(r => rolNorm.includes(r));
+      default:
+        return false;
+    }
+  }
+
+  guardarPermisosExtra() {
+    if (!this.empleadoSeleccionado) return;
+
+    const empId = this.empleadoSeleccionado.id;
+    const usuario = this.auth.getUserName() || 'Admin';
+    
+    // Filtrar módulos que ya están en el rol base
+    const modulosNuevos = this.modulosSeleccionados.filter(
+      m => !this.moduloIncluidoEnRol(m, this.empleadoSeleccionado!.rol)
+    );
+
+    if (modulosNuevos.length === 0 && this.modulosSeleccionados.length > 0) {
+      this.toast.info('Todos los módulos seleccionados ya están incluidos en su rol');
+      this.cerrarModalExtras();
+      return;
+    }
+    
+    this.empleadosService.updatePermisosExtra(empId, {
+      modulos: modulosNuevos,
+      asignadoPor: usuario,
+      nota: this.notaPermisos
+    }).subscribe({
+      next: () => {
+        // Actualizar localmente
+        const emp = this.empleados.find(e => e.id === empId);
+        if (emp) {
+          emp.permisosExtra = {
+            modulos: modulosNuevos,
+            asignadoPor: usuario,
+            fechaAsignacion: new Date().toISOString(),
+            nota: this.notaPermisos
+          };
+        }
+        
+        if (modulosNuevos.length > 0) {
+          this.toast.success(`✅ ${modulosNuevos.length} módulo(s) extra asignados a ${emp?.nombre}`);
+        } else {
+          this.toast.success(`Permisos extra removidos de ${emp?.nombre}`);
+        }
+        this.cerrarModalExtras();
+      },
+      error: (err) => {
+        console.error('Error guardando permisos extra:', err);
+        this.toast.error('Error al guardar los permisos extra');
+      }
+    });
+  }
+
+  quitarTodosExtras() {
+    if (!this.empleadoSeleccionado) return;
+    if (!confirm(`¿Quitar todos los permisos extra de ${this.empleadoSeleccionado.nombre}?`)) return;
+
+    const empId = this.empleadoSeleccionado.id;
+    
+    this.empleadosService.clearPermisosExtra(empId).subscribe({
+      next: () => {
+        const emp = this.empleados.find(e => e.id === empId);
+        if (emp) {
+          emp.permisosExtra = undefined;
+        }
+        this.toast.success('Permisos extra eliminados');
+        this.cerrarModalExtras();
+      },
+      error: (err) => {
+        console.error('Error quitando permisos extra:', err);
+        this.toast.error('Error al quitar los permisos extra');
+      }
+    });
+  }
+
+  /**
+   * Contar módulos extra activos de un empleado
+   */
+  countExtras(emp: Empleado): number {
+    return emp.permisosExtra?.modulos?.length || 0;
+  }
+
+  /**
+   * Obtener nombre amigable de un módulo
+   */
+  getModuloNombre(moduloId: string): string {
+    const mod = this.modulosDisponibles.find(m => m.id === moduloId);
+    return mod ? mod.nombre : moduloId;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🆕 MODAL DE DETALLE DE EMPLEADO (CLICK EN CARD)
+  // ═══════════════════════════════════════════════════════════
+
+  abrirModalEmpleado(emp: Empleado) {
+    this.empleadoSeleccionado = emp;
+    this.showModalEmpleado = true;
+  }
+
+  cerrarModalEmpleado() {
+    this.showModalEmpleado = false;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🆕 MODAL DE EDITAR DATOS DE EMPLEADO
+  // ═══════════════════════════════════════════════════════════
+
+  abrirModalEditarEmpleado(emp: Empleado) {
+    // Crear copia para no modificar el original directamente
+    this.empleadoEditando = { ...emp };
+    this.showModalEditarEmpleado = true;
+  }
+
+  cerrarModalEditarEmpleado() {
+    this.showModalEditarEmpleado = false;
+    this.empleadoEditando = null;
+  }
+
+  guardarEmpleadoEditado() {
+    if (!this.empleadoEditando) return;
+
+    this.empleadosService.updateEmpleado(this.empleadoEditando.id, this.empleadoEditando).subscribe({
+      next: () => {
+        // Actualizar en la lista local
+        const idx = this.empleados.findIndex(e => e.id === this.empleadoEditando!.id);
+        if (idx >= 0) {
+          this.empleados[idx] = { ...this.empleadoEditando! };
+        }
+        this.toast.success('Empleado actualizado correctamente');
+        this.cerrarModalEditarEmpleado();
+      },
+      error: (err) => {
+        console.error('Error actualizando empleado:', err);
+        this.toast.error('Error al actualizar el empleado');
+      }
+    });
   }
 }

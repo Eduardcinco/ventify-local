@@ -1,23 +1,382 @@
-<div class="reports-root">
-  <h3>Reportes</h3>
-
-  <!-- Ventas Section -->
-  <div class="report-section">
-    <h4>Reporte de Ventas</h4>
-    <div class="chart-placeholder">
-      <p>Ventas por Día: {{ ventasPorDia | json }}</p>
-      <p>Ventas por Semana: {{ ventasPorSemana | json }}</p>
-      <p>Ventas por Mes: {{ ventasPorMes | json }}</p>
+<div class="reports-container">
+  <!-- 🧾 VISTA CAJERO: Solo sus ventas del día -->
+  <div *ngIf="permisos.reportesSoloHoy && !permisos.verReportesGlobales" class="cajero-reports">
+    <div class="page-header">
+      <h1>📊 Mis Ventas de Hoy</h1>
     </div>
-    <button class="btn" (click)="downloadPdf('ventas')">Descargar PDF de Ventas</button>
+    
+    <div class="cajero-summary-grid">
+      <div class="summary-card">
+        <div class="summary-icon">🛒</div>
+        <div class="summary-content">
+          <span class="summary-label">Ventas Realizadas</span>
+          <span class="summary-value">{{ getCantidadVentas() }}</span>
+        </div>
+      </div>
+      <div class="summary-card highlight">
+        <div class="summary-icon">💰</div>
+        <div class="summary-content">
+          <span class="summary-label">Total Vendido</span>
+          <span class="summary-value">${{ getTotalMisVentas() | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <span>Cargando tus ventas...</span>
+    </div>
+
+    <div *ngIf="!loading && misVentasHoy.length === 0" class="empty-state">
+      <span class="empty-icon">📭</span>
+      <p>No has realizado ventas hoy.</p>
+      <small>Las ventas que realices aparecerán aquí.</small>
+    </div>
+
+    <div *ngIf="!loading && misVentasHoy.length > 0" class="ventas-list-container">
+      <h3>Detalle de Ventas</h3>
+      <div class="ventas-list">
+        <div class="venta-item" *ngFor="let v of misVentasHoy">
+          <div class="venta-info">
+            <span class="venta-id">#{{ v.id }}</span>
+            <span class="venta-hora">{{ v.fecha | date:'shortTime' }}</span>
+          </div>
+          <div class="venta-total">${{ (v.total || v.montoTotal || 0) | number:'1.2-2' }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Inventario Section -->
-  <div class="report-section">
-    <h4>Reporte de Inventario</h4>
-    <div class="chart-placeholder">
-      <p>Inventario Actual: {{ inventario | json }}</p>
+  <!-- 👔 VISTA ADMIN: Reportes completos (Dueño/Gerente) -->
+  <div *ngIf="permisos.verReportesGlobales" class="admin-reports">
+    
+    <!-- Header con título y botones de exportación -->
+    <div class="page-header">
+      <div class="header-content">
+        <h1>📊 Reportes de Ventas</h1>
+        <p class="header-subtitle" *ngIf="reporte">
+          {{ reporte.nombreNegocio }} · Generado: {{ reporte.fechaGeneracion | date:'medium' }}
+        </p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-excel" (click)="exportarExcel()" [disabled]="exportando || !reporte">
+          <span class="btn-icon">📗</span>
+          {{ exportando ? 'Exportando...' : 'Excel' }}
+        </button>
+        <button class="btn btn-pdf" (click)="exportarPDF()" [disabled]="exportando || !reporte">
+          <span class="btn-icon">📕</span>
+          {{ exportando ? 'Exportando...' : 'PDF' }}
+        </button>
+      </div>
     </div>
-    <button class="btn" (click)="downloadPdf('inventario')">Descargar PDF de Inventario</button>
+
+    <!-- Filtros -->
+    <div class="filters-card">
+      <div class="filters-grid">
+        <!-- Fecha Inicio -->
+        <div class="filter-group">
+          <label for="fechaInicio">Fecha Inicio</label>
+          <input 
+            type="date" 
+            id="fechaInicio"
+            [(ngModel)]="filtro.fechaInicio"
+            class="filter-input"
+          />
+        </div>
+
+        <!-- Fecha Fin -->
+        <div class="filter-group">
+          <label for="fechaFin">Fecha Fin</label>
+          <input 
+            type="date" 
+            id="fechaFin"
+            [(ngModel)]="filtro.fechaFin"
+            class="filter-input"
+          />
+        </div>
+
+        <!-- Agrupación -->
+        <div class="filter-group">
+          <label for="tipoAgrupacion">Agrupar por</label>
+          <select 
+            id="tipoAgrupacion"
+            [(ngModel)]="filtro.tipoAgrupacion"
+            class="filter-input"
+          >
+            <option *ngFor="let tipo of tiposAgrupacion" [value]="tipo.value">
+              {{ tipo.icon }} {{ tipo.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Método de Pago -->
+        <div class="filter-group">
+          <label for="metodoPago">Método de Pago</label>
+          <select 
+            id="metodoPago"
+            [(ngModel)]="filtro.metodoPago"
+            class="filter-input"
+          >
+            <option *ngFor="let metodo of metodosPago" [value]="metodo.value">
+              {{ metodo.icon }} {{ metodo.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Botón Generar -->
+        <div class="filter-group filter-action">
+          <button 
+            class="btn btn-primary btn-generar" 
+            (click)="cargarReporte()" 
+            [disabled]="loading"
+          >
+            <span class="btn-icon">🔍</span>
+            {{ loading ? 'Cargando...' : 'Generar Reporte' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error" class="error-message">
+      <span class="error-icon">⚠️</span>
+      {{ error }}
+      <button class="btn-close" (click)="error = null">×</button>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <span>Generando reporte...</span>
+    </div>
+
+    <!-- Contenido del Reporte -->
+    <div *ngIf="reporte && !loading" class="report-content">
+      
+      <!-- KPIs Grid -->
+      <div class="kpis-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon">🛒</div>
+          <div class="kpi-content">
+            <span class="kpi-value">{{ reporte.resumenGeneral.totalVentas }}</span>
+            <span class="kpi-label">Ventas Totales</span>
+          </div>
+        </div>
+        
+        <div class="kpi-card highlight">
+          <div class="kpi-icon">💰</div>
+          <div class="kpi-content">
+            <span class="kpi-value">${{ reporte.resumenGeneral.totalIngresos | number:'1.2-2' }}</span>
+            <span class="kpi-label">Ingresos Totales</span>
+          </div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-icon">🧾</div>
+          <div class="kpi-content">
+            <span class="kpi-value">${{ reporte.resumenGeneral.ticketPromedio | number:'1.2-2' }}</span>
+            <span class="kpi-label">Ticket Promedio</span>
+          </div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-icon">👥</div>
+          <div class="kpi-content">
+            <span class="kpi-value">{{ reporte.resumenGeneral.clientesUnicos }}</span>
+            <span class="kpi-label">Clientes Únicos</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon">📈</div>
+          <div class="kpi-content">
+            <span class="kpi-value">${{ reporte.resumenGeneral.ventaMaxima | number:'1.2-2' }}</span>
+            <span class="kpi-label">Venta Máxima</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon">👤</div>
+          <div class="kpi-content">
+            <span class="kpi-value">{{ reporte.resumenGeneral.cajerosActivos }}</span>
+            <span class="kpi-label">Cajeros Activos</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Métodos de Pago Resumen -->
+      <div class="payment-summary">
+        <h3>💳 Resumen por Método de Pago</h3>
+        <div class="payment-grid">
+          <div class="payment-card efectivo">
+            <span class="payment-icon">💵</span>
+            <div class="payment-info">
+              <span class="payment-label">Efectivo</span>
+              <span class="payment-amount">${{ reporte.resumenGeneral.totalEfectivo | number:'1.2-2' }}</span>
+              <span class="payment-count">{{ reporte.resumenGeneral.ventasEfectivo }} ventas</span>
+            </div>
+          </div>
+          <div class="payment-card tarjeta">
+            <span class="payment-icon">💳</span>
+            <div class="payment-info">
+              <span class="payment-label">Tarjeta</span>
+              <span class="payment-amount">${{ reporte.resumenGeneral.totalTarjeta | number:'1.2-2' }}</span>
+              <span class="payment-count">{{ reporte.resumenGeneral.ventasTarjeta }} ventas</span>
+            </div>
+          </div>
+          <div class="payment-card transferencia">
+            <span class="payment-icon">🏦</span>
+            <div class="payment-info">
+              <span class="payment-label">Transferencia</span>
+              <span class="payment-amount">${{ reporte.resumenGeneral.totalTransferencia | number:'1.2-2' }}</span>
+              <span class="payment-count">{{ reporte.resumenGeneral.ventasTransferencia }} ventas</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs de navegación -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button 
+            class="tab" 
+            [class.active]="tabActiva === 'resumen'"
+            (click)="cambiarTab('resumen')"
+          >
+            📈 Gráficas
+          </button>
+          <button 
+            class="tab" 
+            [class.active]="tabActiva === 'periodos'"
+            (click)="cambiarTab('periodos')"
+          >
+            📅 Por Período
+          </button>
+          <button 
+            class="tab" 
+            [class.active]="tabActiva === 'productos'"
+            (click)="cambiarTab('productos')"
+          >
+            🏆 Top Productos
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab: Gráficas -->
+      <div *ngIf="tabActiva === 'resumen'" class="tab-content">
+        <div class="charts-grid">
+          <!-- Gráfica de Ventas por Período -->
+          <div class="chart-card">
+            <h3>📊 Ventas e Ingresos por {{ filtro.tipoAgrupacion === 'dia' ? 'Día' : filtro.tipoAgrupacion === 'semana' ? 'Semana' : filtro.tipoAgrupacion === 'mes' ? 'Mes' : 'Año' }}</h3>
+            <div class="chart-container">
+              <canvas #ventasChart></canvas>
+            </div>
+          </div>
+
+          <!-- Gráfica de Métodos de Pago -->
+          <div class="chart-card chart-small">
+            <h3>💳 Distribución por Método de Pago</h3>
+            <div class="chart-container-small">
+              <canvas #pagosChart></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Datos por Período -->
+      <div *ngIf="tabActiva === 'periodos'" class="tab-content">
+        <div class="table-card">
+          <h3>📅 Datos Detallados por Período</h3>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th class="text-right">Ventas</th>
+                  <th class="text-right">Ingresos</th>
+                  <th class="text-right">Ticket Prom.</th>
+                  <th class="text-right">Efectivo</th>
+                  <th class="text-right">Tarjeta</th>
+                  <th class="text-right">Transf.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let dato of reporte.datosPorPeriodo">
+                  <td class="periodo-cell">{{ formatPeriodoLabel(dato.periodo) }}</td>
+                  <td class="text-right">{{ dato.totalVentas }}</td>
+                  <td class="text-right amount">${{ dato.totalIngresos | number:'1.2-2' }}</td>
+                  <td class="text-right">${{ dato.ticketPromedio | number:'1.2-2' }}</td>
+                  <td class="text-right">${{ dato.totalEfectivo | number:'1.2-2' }}</td>
+                  <td class="text-right">${{ dato.totalTarjeta | number:'1.2-2' }}</td>
+                  <td class="text-right">${{ dato.totalTransferencia | number:'1.2-2' }}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="totals-row">
+                  <td><strong>TOTALES</strong></td>
+                  <td class="text-right"><strong>{{ reporte.resumenGeneral.totalVentas }}</strong></td>
+                  <td class="text-right amount"><strong>${{ reporte.resumenGeneral.totalIngresos | number:'1.2-2' }}</strong></td>
+                  <td class="text-right"><strong>${{ reporte.resumenGeneral.ticketPromedio | number:'1.2-2' }}</strong></td>
+                  <td class="text-right"><strong>${{ reporte.resumenGeneral.totalEfectivo | number:'1.2-2' }}</strong></td>
+                  <td class="text-right"><strong>${{ reporte.resumenGeneral.totalTarjeta | number:'1.2-2' }}</strong></td>
+                  <td class="text-right"><strong>${{ reporte.resumenGeneral.totalTransferencia | number:'1.2-2' }}</strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Top Productos -->
+      <div *ngIf="tabActiva === 'productos'" class="tab-content">
+        <div class="table-card">
+          <h3>🏆 Top 20 Productos Más Vendidos</h3>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="rank-col">#</th>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th class="text-right">Cantidad</th>
+                  <th class="text-right">Precio Prom.</th>
+                  <th class="text-right">Total Ventas</th>
+                  <th class="text-right">Transacciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let producto of reporte.topProductos; let i = index" [class.top-3]="i < 3">
+                  <td class="rank-cell">
+                    <span class="rank" [class.gold]="i === 0" [class.silver]="i === 1" [class.bronze]="i === 2">
+                      {{ i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 }}
+                    </span>
+                  </td>
+                  <td class="product-cell">
+                    <span class="product-name">{{ producto.productoNombre }}</span>
+                    <span class="product-code" *ngIf="producto.codigoBarras">{{ producto.codigoBarras }}</span>
+                  </td>
+                  <td>
+                    <span class="category-badge">{{ producto.categoriaNombre || 'Sin categoría' }}</span>
+                  </td>
+                  <td class="text-right quantity">{{ producto.cantidadVendida }}</td>
+                  <td class="text-right">${{ producto.precioPromedio | number:'1.2-2' }}</td>
+                  <td class="text-right amount">${{ producto.totalVentas | number:'1.2-2' }}</td>
+                  <td class="text-right">{{ producto.numeroTransacciones }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Estado vacío -->
+    <div *ngIf="!reporte && !loading && !error" class="empty-state">
+      <span class="empty-icon">📊</span>
+      <p>Selecciona un rango de fechas y haz clic en "Generar Reporte"</p>
+      <small>Podrás ver gráficas, tablas de datos y exportar a Excel o PDF.</small>
+    </div>
+
   </div>
 </div>

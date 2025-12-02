@@ -5,6 +5,7 @@ import { CategoriesService } from '../../../services/categories.service';
 import { CajaService } from '../../../services/caja.service';
 import { AlertasService } from '../../../services/alertas.service';
 import { AuthService } from '../../../services/auth.service';
+import { PermissionsService, PermisosPorRol } from '../../../services/permissions.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -27,10 +28,16 @@ export class InventoryComponent {
   showForm = false;
   editingProduct: any = null;
   
+  // Toggle para mostrar productos ocultos (desactivados)
+  mostrarOcultos = false;
+  
   // Filtros avanzados
   filterCategories: string[] = [];
   filterBrands: string[] = [];
   filterLowStock = false;
+  
+  // 🔐 Permisos del usuario actual
+  permisos!: PermisosPorRol;
 
   // Formulario de producto
   form = {
@@ -72,8 +79,11 @@ export class InventoryComponent {
     private cajaService: CajaService,
     private alertasService: AlertasService,
     private authService: AuthService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    public permissionsService: PermissionsService
   ) {
+    // Cargar permisos
+    this.permisos = this.permissionsService.getPermisos();
     this.loadProducts();
     this.loadCategories();
     // Suscripción al estado de caja
@@ -97,7 +107,9 @@ export class InventoryComponent {
   
   loadProducts() {
     const negocioId = this.authService.getBusinessId();
-    this.productsService.list().subscribe({
+    // Usar filtro según toggle: activos o todos
+    const filtro = this.mostrarOcultos ? 'todos' : 'activos';
+    this.productsService.list(filtro).subscribe({
       next: (res: any) => {
         const list = res || [];
         // Filtrado defensivo por negocioId si el backend llegara a devolver otros
@@ -105,6 +117,11 @@ export class InventoryComponent {
       },
       error: () => console.error('Error cargando productos')
     });
+  }
+
+  // Toggle mostrar ocultos
+  onToggleMostrarOcultos() {
+    this.loadProducts();
   }
 
   loadCategories() {
@@ -413,8 +430,26 @@ export class InventoryComponent {
     this.openForm();
   }
 
-  deactivateProduct(p: any) {
-    this.deleteProduct(p);
+  // Desactivar producto (soft delete) - pone Activo = false
+  toggleActivoProduct(p: any) {
+    const nuevoEstado = !(p.activo ?? true);
+    const accion = nuevoEstado ? 'activar' : 'desactivar';
+    
+    if (!confirm(`¿${nuevoEstado ? 'Activar' : 'Desactivar'} el producto "${p.nombre || p.name}"?`)) {
+      return;
+    }
+
+    this.productsService.toggleActivo(p.id, nuevoEstado).subscribe({
+      next: () => {
+        alert(`Producto ${nuevoEstado ? 'activado' : 'desactivado'} exitosamente`);
+        this.loadProducts();
+        this.alertasService.refresh();
+      },
+      error: (err) => {
+        console.error(err);
+        alert(err?.error?.message || `Error al ${accion} el producto`);
+      }
+    });
   }
 
   // Merma handlers

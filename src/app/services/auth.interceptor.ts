@@ -9,31 +9,55 @@ import { Router } from '@angular/router';
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
   private isRefreshing = false;
-  private refreshTokenSubject: BehaviorSubject<string | null> = new BehaviorSubject<string | null>(null);
+  private refreshTokenSubject: BehaviorSubject<boolean> = new BehaviorSubject<boolean>(false);
 
   constructor(private auth: AuthService, private router: Router, private toast: ToastService) {}
 
-  private addToken(req: HttpRequest<any>, token: string | null) {
-    if (!token) return req;
-    return req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+  /**
+   * 🔐 Añade credenciales para cookies HttpOnly
+   * En modo híbrido, también añade Authorization si hay token en storage
+   */
+  private addCredentials(req: HttpRequest<any>): HttpRequest<any> {
+    const token = this.auth.getToken();
+    
+    // Siempre enviar withCredentials para cookies HttpOnly
+    let clonedReq = req.clone({ withCredentials: true });
+    
+    // Modo híbrido: si hay token en storage, también añadir header Authorization
+    if (token) {
+      clonedReq = clonedReq.clone({ 
+        setHeaders: { Authorization: `Bearer ${token}` }
+      });
+    }
+    
+    return clonedReq;
   }
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const token = this.auth.getToken();
-    const authReq = token ? this.addToken(req, token) : req;
+    // Añadir credenciales (cookies + header híbrido si hay token)
+    const authReq = this.addCredentials(req);
+    
     return next.handle(authReq).pipe(
       catchError((err: any) => {
         if (err instanceof HttpErrorResponse && err.status === 401) {
-          // Detect token version invalidation or hard auth failure
+          // Detectar invalidación de versión de token o fallo de auth
           const msg = (err.error?.message || '').toLowerCase();
           const isTokenVersionMismatch = msg.includes('version') || msg.includes('tokenversion');
           const isRefreshEndpoint = req.url.includes('/refresh');
-          if (isTokenVersionMismatch || isRefreshEndpoint) {
-            this.toast.warning('Sesión invalidada. Inicia sesión nuevamente.');
-            this.auth.logout();
-            this.router.navigate(['/login']);
+          const isLoginEndpoint = req.url.includes('/login');
+          const isRegisterEndpoint = req.url.includes('/register');
+          
+          // No intentar refresh en endpoints de auth
+          if (isTokenVersionMismatch || isRefreshEndpoint || isLoginEndpoint || isRegisterEndpoint) {
+            if (!isLoginEndpoint && !isRegisterEndpoint) {
+              this.toast.warning('Sesión invalidada. Inicia sesión nuevamente.');
+              this.auth.logout().subscribe();
+              this.router.navigate(['/login']);
+            }
             return throwError(() => err);
           }
+          
+          // Intentar refresh con cookies HttpOnly
           return this.handle401Error(req, next);
         }
         return throwError(() => err);
@@ -44,28 +68,30 @@ export class AuthInterceptor implements HttpInterceptor {
   private handle401Error(req: HttpRequest<any>, next: HttpHandler): Observable<any> {
     if (!this.isRefreshing) {
       this.isRefreshing = true;
-      this.refreshTokenSubject.next(null);
+      this.refreshTokenSubject.next(false);
 
+      // El refresh ahora usa cookies HttpOnly - no necesita token en storage
       return this.auth.refreshToken().pipe(
-        switchMap((res: any) => {
+        switchMap(() => {
           this.isRefreshing = false;
-          const newToken = this.auth.getToken();
-          this.refreshTokenSubject.next(newToken ?? null);
-          return next.handle(this.addToken(req, newToken ?? null));
+          this.refreshTokenSubject.next(true);
+          // Reintentar request original con nuevas credenciales
+          return next.handle(this.addCredentials(req));
         }),
         catchError((err) => {
           this.isRefreshing = false;
           this.toast.error('No se pudo refrescar la sesión.');
-          this.auth.logout();
+          this.auth.logout().subscribe();
           this.router.navigate(['/login']);
           return throwError(() => err);
         })
       );
     } else {
+      // Esperar a que termine el refresh en curso
       return this.refreshTokenSubject.pipe(
-        filter(token => token != null),
+        filter(refreshed => refreshed === true),
         take(1),
-        switchMap((token) => next.handle(this.addToken(req, token)))
+        switchMap(() => next.handle(this.addCredentials(req)))
       );
     }
   }

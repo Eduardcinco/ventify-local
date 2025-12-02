@@ -1,9 +1,14 @@
-// NUEVO ARCHIVO: Crear servicio para reportes
+/**
+ * 📊 SERVICIO DE REPORTES
+ * Maneja la obtención de datos y exportación a Excel/PDF
+ */
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, tap, catchError, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { BusinessContextService } from './business-context.service';
+import { FiltroReporte, ReporteVentasCompleto } from '../interfaces/reporte.interface';
+import { saveAs } from 'file-saver';
 
 @Injectable({
   providedIn: 'root'
@@ -20,6 +25,86 @@ export class ReportsService {
     }
     return {};
   }
+
+  // ============================================
+  // 🆕 NUEVOS ENDPOINTS DE REPORTES PROFESIONALES
+  // ============================================
+
+  /**
+   * Obtener reporte de ventas completo con datos para visualizar
+   */
+  getReporteVentas(filtro: FiltroReporte): Observable<ReporteVentasCompleto> {
+    let params = new HttpParams()
+      .set('fechaInicio', filtro.fechaInicio)
+      .set('fechaFin', filtro.fechaFin)
+      .set('tipoAgrupacion', filtro.tipoAgrupacion);
+
+    if (filtro.metodoPago) {
+      params = params.set('metodoPago', filtro.metodoPago);
+    }
+
+    if (filtro.cajerosIds && filtro.cajerosIds.length > 0) {
+      filtro.cajerosIds.forEach(id => {
+        params = params.append('cajerosIds', id.toString());
+      });
+    }
+
+    return this.http.get<ReporteVentasCompleto>(`${this.base}/reportes/ventas`, {
+      params,
+      withCredentials: true,
+      ...this.buildHeaders()
+    });
+  }
+
+  /**
+   * Exportar reporte a Excel o PDF
+   * Descarga automáticamente el archivo
+   */
+  exportarReporte(filtro: FiltroReporte): Observable<Blob> {
+    const body = {
+      fechaInicio: filtro.fechaInicio,
+      fechaFin: filtro.fechaFin,
+      tipoAgrupacion: filtro.tipoAgrupacion,
+      formato: filtro.formato || 'excel',
+      metodoPago: filtro.metodoPago || null,
+      cajerosIds: filtro.cajerosIds || []
+    };
+
+    return this.http.post(`${this.base}/reportes/ventas/exportar`, body, {
+      responseType: 'blob',
+      withCredentials: true,
+      ...this.buildHeaders()
+    }).pipe(
+      tap((blob) => {
+        const extension = filtro.formato === 'pdf' ? 'pdf' : 'xlsx';
+        const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const fileName = `Reporte_Ventas_${fecha}.${extension}`;
+        saveAs(blob, fileName);
+      }),
+      catchError(error => {
+        console.error('Error al exportar reporte:', error);
+        return throwError(() => new Error('Error al generar el archivo de reporte'));
+      })
+    );
+  }
+
+  /**
+   * Exportar a Excel (método de conveniencia)
+   */
+  exportarExcel(filtro: Omit<FiltroReporte, 'formato'>): Observable<Blob> {
+    return this.exportarReporte({ ...filtro, formato: 'excel' });
+  }
+
+  /**
+   * Exportar a PDF (método de conveniencia)
+   */
+  exportarPDF(filtro: Omit<FiltroReporte, 'formato'>): Observable<Blob> {
+    return this.exportarReporte({ ...filtro, formato: 'pdf' });
+  }
+
+  // ============================================
+  // ENDPOINTS LEGACY (mantener compatibilidad)
+  // ============================================
 
   // Reportes de ventas
   getVentasPorDia(desde?: string, hasta?: string): Observable<any[]> {
@@ -70,5 +155,17 @@ export class ReportsService {
       params = `?${categoria ? `categoria=${categoria}` : ''}${stockBajo ? `&stockBajo=${stockBajo}` : ''}`;
     }
     return this.http.get(`${this.base}/producto/inventario-pdf${params}`, { responseType: 'blob', ...this.buildHeaders() });
+  }
+
+  /**
+   * 🧾 Obtener ventas del cajero del día actual
+   * @param userId ID del usuario (cajero)
+   */
+  getMisVentasHoy(userId: number | string): Observable<any[]> {
+    const hoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    return this.http.get<any[]>(
+      `${this.base}/ventas/mis-ventas?fecha=${hoy}&usuarioId=${userId}`,
+      this.buildHeaders()
+    );
   }
 }

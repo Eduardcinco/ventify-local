@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
+import { PermissionsService, PermisosPorRol } from '../../../services/permissions.service';
 import { jwtDecode } from 'jwt-decode';
 
 @Component({
@@ -36,8 +37,17 @@ export class DashboardHomeComponent implements OnInit {
 
   // Productos con bajo stock
   lowStockAlert = true; // Si hay productos con bajo stock
+  
+  // 🔐 Permisos del usuario actual
+  permisos: PermisosPorRol;
 
-  constructor(private authService: AuthService) { }
+  constructor(
+    private authService: AuthService,
+    private permissionsService: PermissionsService
+  ) {
+    // Inicializar permisos en el constructor
+    this.permisos = this.permissionsService.getPermisos();
+  }
 
   ngOnInit(): void {
     // Obtener datos del usuario logueado
@@ -49,6 +59,13 @@ export class DashboardHomeComponent implements OnInit {
     }
     this.setGreeting();
     this.setFirstName();
+    
+    // Suscribirse a cambios de sesión para actualizar permisos
+    this.authService.currentSession$.subscribe(session => {
+      if (session) {
+        this.permisos = this.permissionsService.getPermisos();
+      }
+    });
   }
 
   setGreeting(): void {

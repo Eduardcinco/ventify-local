@@ -3,7 +3,8 @@
     <h1>Gestión de Inventario</h1>
     <p>Administra todos los productos de tu negocio</p>
   </div>
-  <button class="add-btn" (click)="openForm()" [disabled]="!cajaState.abierta" *ngIf="isDueno()">+ Agregar Producto</button>
+  <!-- Botón agregar: solo Dueño, Gerente y Almacenista pueden agregar productos -->
+  <button class="add-btn" (click)="openForm()" [disabled]="!cajaState.abierta" *ngIf="permisos.agregarProducto">+ Agregar Producto</button>
 </div>
 
 <!-- Banner de estado de caja -->
@@ -194,80 +195,146 @@
   </div>
 </div>
 
-<!-- LISTA DE PRODUCTOS -->
+<!-- BARRA DE BÚSQUEDA Y FILTROS -->
+<div class="inventory-toolbar">
+  <div class="search-box">
+    <mat-icon class="search-icon">search</mat-icon>
+    <input 
+      type="text" 
+      placeholder="Buscar por nombre, categoría o código..." 
+      [(ngModel)]="search" 
+    />
+  </div>
+  
+  <div class="toolbar-actions">
+    <label class="toggle-ocultos">
+      <input type="checkbox" [(ngModel)]="mostrarOcultos" (change)="onToggleMostrarOcultos()">
+      <span class="switch"></span>
+      <span>Mostrar ocultos</span>
+    </label>
+    <button class="filters-toggle" (click)="showFilters = !showFilters">
+      <mat-icon>filter_list</mat-icon>
+      <span>Filtros</span>
+    </button>
+  </div>
+</div>
+
+<!-- RESUMEN DEL INVENTARIO -->
+<div class="inventory-summary">
+  <div class="summary-card">
+    <mat-icon>inventory_2</mat-icon>
+    <div>
+      <span class="label">Productos</span>
+      <span class="value">{{filteredProducts.length}}</span>
+    </div>
+  </div>
+  <div class="summary-card">
+    <mat-icon>layers</mat-icon>
+    <div>
+      <span class="label">Stock Total</span>
+      <span class="value">{{totalStock}}</span>
+    </div>
+  </div>
+  <div class="summary-card">
+    <mat-icon>attach_money</mat-icon>
+    <div>
+      <span class="label">Valor Inventario</span>
+      <span class="value">${{totalValue | number:'1.0-0'}}</span>
+    </div>
+  </div>
+  <div class="summary-card success">
+    <mat-icon>trending_up</mat-icon>
+    <div>
+      <span class="label">Ganancia Est.</span>
+      <span class="value">${{gananciaEstimada | number:'1.0-0'}}</span>
+    </div>
+  </div>
+</div>
+
+<!-- GRID DE PRODUCTOS (ESTILO MERCADO) -->
 <div class="inventory-main">
-  <div class="inventory-main-content">
-    <div class="inventory-filters">
-      <input 
-        id="search" 
-        name="search" 
-        type="text" 
-        placeholder="Buscar por nombre, categoría, código de barras..." 
-        [(ngModel)]="search" 
-      />
-      <button class="filters-toggle" (click)="showFilters = !showFilters">
-        <span *ngIf="showFilters">Ocultar Filtros</span>
-        <span *ngIf="!showFilters">Mostrar Filtros</span>
-      </button>
-    </div>
-
-    <div class="inventory-summary">
-      <span><strong>Total productos:</strong> {{filteredProducts.length}}</span>
-      <span><strong>Stock total:</strong> {{totalStock}} unidades</span>
-      <span><strong>Valor inventario:</strong> ${{totalValue | number:'1.2-2'}}</span>
-      <span><strong>Ganancia estimada:</strong> ${{gananciaEstimada | number:'1.2-2'}}</span>
-    </div>
-
-    <div class="inventory-list">
-      <div class="product-card" *ngFor="let p of filteredProducts; trackBy: trackByProduct">
-        <div class="card-header">
-          <span class="product-name">{{p.nombre || p.name}}</span>
-          <div class="badges-container">
-            <span class="category-badge">{{p.categoria || p.category}}</span>
-            <span *ngIf="p.descuentoPorcentaje" class="descuento-badge">
-              -{{p.descuentoPorcentaje}}% OFF
-            </span>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="product-info">
-            <span><strong>Precio venta:</strong> ${{p.precioVenta || p.price}}</span>
-            <span><strong>Stock:</strong> 
-              <b class="stock" [class.low]="(p.stock || p.cantidadDisponible) < 10">
-                {{p.stock || p.cantidadDisponible || 0}} unidades
-              </b>
-            </span>
-            <span *ngIf="p.codigoBarras || p.barcode">
-              <strong>Código:</strong> {{p.codigoBarras || p.barcode}}
-            </span>
-            <span *ngIf="p.merma && p.merma > 0" class="merma-badge">
-              Merma: {{p.merma}} unidades
-            </span>
-          </div>
-          <div class="card-actions">
-            <button class="edit-btn" title="Editar" (click)="editProduct(p)">✏️</button>
-            <button class="delete-btn" title="Eliminar" (click)="deactivateProduct(p)">🗑️</button>
-            <button class="merma-btn" title="Agregar merma" (click)="openMermaModal(p)">🛠️ Merma</button>
-            <button *ngIf="isDueno()" class="descuento-btn" title="Gestionar descuento" (click)="abrirModalDescuento(p)">💰 Descuento</button>
-          </div>
-        </div>
+  <div class="products-grid">
+    <div 
+      class="product-tile" 
+      *ngFor="let p of filteredProducts; trackBy: trackByProduct"
+      [class.inactive]="p.activo === false"
+    >
+      <!-- Badge de descuento -->
+      <div class="discount-ribbon" *ngIf="p.descuentoPorcentaje">
+        -{{p.descuentoPorcentaje}}%
       </div>
       
-      <div *ngIf="filteredProducts.length === 0" class="empty-state">
-        No hay productos que coincidan con la búsqueda.
+      <!-- Badge de inactivo -->
+      <div class="inactive-overlay" *ngIf="p.activo === false">
+        <mat-icon>visibility_off</mat-icon>
+        <span>Oculto</span>
       </div>
+
+      <!-- Nombre del producto -->
+      <div class="tile-name">{{p.nombre || p.name}}</div>
+      
+      <!-- Precio centrado -->
+      <div class="tile-price">
+        <span class="price-current" [class.has-discount]="p.descuentoPorcentaje">
+          ${{p.precioVenta || p.price | number:'1.2-2'}}
+        </span>
+        <span class="price-discounted" *ngIf="p.descuentoPorcentaje">
+          ${{(p.precioVenta || p.price) * (1 - p.descuentoPorcentaje / 100) | number:'1.2-2'}}
+        </span>
+      </div>
+
+      <!-- Stock indicator -->
+      <div class="tile-stock" [class.low]="(p.stock || p.cantidadDisponible || 0) < (p.stockMinimo || 10)">
+        <mat-icon>inventory</mat-icon>
+        {{p.stock || p.cantidadDisponible || 0}}
+      </div>
+
+      <!-- Iconos de acción - mostrar según permisos -->
+      <div class="tile-actions">
+        <!-- Descuento: solo Dueño y Gerente -->
+        <button class="action-icon descuento" title="Aplicar Descuento" (click)="abrirModalDescuento(p)" *ngIf="permisos.aplicarDescuento">
+          <mat-icon>percent</mat-icon>
+        </button>
+        <!-- Merma: Dueño, Gerente y Almacenista -->
+        <button class="action-icon merma" title="Registrar Merma" (click)="openMermaModal(p)" *ngIf="permisos.registrarMerma">
+          <mat-icon>delete_sweep</mat-icon>
+        </button>
+        <!-- Editar: Dueño, Gerente y Almacenista -->
+        <button class="action-icon edit" title="Editar Producto" (click)="editProduct(p)" *ngIf="permisos.editarProducto">
+          <mat-icon>edit</mat-icon>
+        </button>
+      </div>
+
+      <!-- Botón desactivar/activar - solo Dueño y Gerente -->
+      <button 
+        *ngIf="permisos.eliminarProducto"
+        class="toggle-active-btn" 
+        [class.is-inactive]="p.activo === false"
+        title="{{ p.activo === false ? 'Activar producto' : 'Ocultar producto' }}"
+        (click)="toggleActivoProduct(p)"
+      >
+        <mat-icon>{{ p.activo === false ? 'visibility' : 'visibility_off' }}</mat-icon>
+      </button>
+    </div>
+    
+    <div *ngIf="filteredProducts.length === 0" class="empty-state">
+      <mat-icon>inventory_2</mat-icon>
+      <p>No hay productos que coincidan con la búsqueda.</p>
     </div>
   </div>
 
+  <!-- PANEL DE FILTROS -->
   <aside class="inventory-filters-panel" [class.open]="showFilters">
     <div class="filters-header">
       <span>Filtros avanzados</span>
-      <button class="close-filters" (click)="showFilters = false">✖</button>
+      <button class="close-filters" (click)="showFilters = false">
+        <mat-icon>close</mat-icon>
+      </button>
     </div>
     <div class="filters-section">
       <div class="filter-group">
         <div class="filter-title">Categorías</div>
-        <label *ngFor="let cat of categoriesList; let i = index">
+        <label *ngFor="let cat of categoriesList">
           <input 
             type="checkbox" 
             [checked]="filterCategories.includes(cat)" 
@@ -278,14 +345,14 @@
       </div>
       
       <div class="filter-group">
-        <label for="filterLowStock">
+        <label class="filter-checkbox">
           <input 
-            id="filterLowStock" 
             type="checkbox" 
             [(ngModel)]="filterLowStock" 
             (change)="onFilterChange()" 
           />
-          Solo stock bajo (&lt; 10)
+          <mat-icon>warning</mat-icon>
+          <span>Solo stock bajo</span>
         </label>
       </div>
     </div>

@@ -1,63 +1,86 @@
-<<<<<<< HEAD
-# FRONT
-
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.0.
-
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
-=======
 # Front-Zona-30
->>>>>>> 700f83372c31d80916587bc5f8d682dfa416817c
+
+Sistema de gestión empresarial desarrollado con Angular 20.
+
+## 🚀 Stack Tecnológico
+
+- **Angular 20.3.0** - Framework principal
+- **TypeScript 5.9.2** - Lenguaje de programación
+- **Angular Material 20.2.14** - Componentes UI
+- **Chart.js 4.5.1** - Visualización de datos
+- **RxJS 7.8.0** - Programación reactiva
+- **JWT** - Autenticación y autorización
+
+## 📋 Características
+
+- ✅ Sistema de autenticación con JWT
+- ✅ Multi-negocio con contexto empresarial
+- ✅ Dashboard con módulos especializados:
+  - 💰 Punto de Venta (POS)
+  - 📦 Gestión de Inventario
+  - 👥 Clientes y Proveedores
+  - 💵 Caja y Ventas
+  - 📊 Reportes y Gráficas
+  - ⚙️ Configuración del Sistema
+  - 🔔 Alertas de Stock
+- ✅ Sistema de permisos por roles
+- ✅ Exportación a Excel/PDF
+- ✅ Arquitectura standalone (Zone-less)
+
+## 🛠️ Instalación
+
+```bash
+# Instalar dependencias
+npm install
+
+# Servidor de desarrollo
+npm start
+
+# Compilar para producción
+npm run build
+
+# Ejecutar pruebas
+npm test
+```
+
+## 🌐 Servidor de Desarrollo
+
+Una vez iniciado el servidor, navega a `http://localhost:4200/`.
+
+La aplicación se recargará automáticamente al modificar los archivos fuente.
+
+## 🏗️ Estructura del Proyecto
+
+```
+src/app/
+├── components/       # Componentes UI
+├── services/         # Servicios y lógica de negocio
+├── guards/          # Protección de rutas
+├── interfaces/      # Tipos TypeScript
+└── environments/    # Configuración de entornos
+```
+
+## 🔗 Backend
+
+Este frontend se conecta a un backend .NET en `http://localhost:5129`
+
+## 📦 Build
+
+```bash
+npm run build
+```
+
+Los archivos compilados se almacenarán en el directorio `dist/`.
+
+## 📚 Documentación Adicional
+
+- [Angular CLI Overview](https://angular.dev/tools/cli)
+- [Angular Documentation](https://angular.dev)
+
+## 📄 Licencia
+
+Proyecto privado - Zona 30
+
+---
+
+**Generado con Angular CLI 20.3.0**

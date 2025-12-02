@@ -39,9 +39,14 @@ export class ProductsService {
 
   constructor(private http: HttpClient, private auth: AuthService, private biz: BusinessContextService) {}
 
-  list(includeInactive = false) {
+  /**
+   * Lista productos con filtro:
+   * - 'activos' (default): solo Activo = true
+   * - 'todos': Activo true o false
+   */
+  list(filtro: 'activos' | 'todos' = 'activos') {
     const negocioId = this.auth.getBusinessId();
-    let params = new HttpParams().set('includeInactive', String(includeInactive));
+    let params = new HttpParams().set('filtro', filtro);
     // No enviamos negocioId salvo modo debug
     const headers = this.biz.shouldSendDebugHeader() && negocioId
       ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
@@ -80,9 +85,16 @@ export class ProductsService {
     return this.http.delete(`${this.base}/${id}`, { headers });
   }
 
-  // soft-activate/deactivate
-  setActive(id: number, active: boolean) {
-    return this.http.patch(`${this.base}/${id}/active`, { active });
+  /**
+   * Toggle activar/desactivar producto (soft delete)
+   * PUT /api/producto/{id}/activo
+   */
+  toggleActivo(id: number, activo: boolean) {
+    const negocioId = this.auth.getBusinessId();
+    const headers = this.biz.shouldSendDebugHeader() && negocioId
+      ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
+      : undefined;
+    return this.http.put(`${this.base}/${id}/activo`, { activo }, { headers });
   }
 
   // agregar merma (auditable)

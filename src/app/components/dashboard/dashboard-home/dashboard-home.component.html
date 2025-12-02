@@ -36,21 +36,35 @@
   <div class="quick-actions">
     <h2>Acciones Rápidas</h2>
     <div class="actions-grid">
-      <a routerLink="/dashboard/pos" class="action-btn primary">
+      <!-- Nueva Venta - Dueño, Gerente, Cajero -->
+      <a *ngIf="permisos.verPuntoVenta" routerLink="/dashboard/pos" class="action-btn primary">
         <span class="action-icon">🛍️</span>
         <span class="action-text">Nueva Venta</span>
       </a>
-      <a routerLink="/dashboard/inventory" class="action-btn">
+      <!-- Inventario - Dueño, Gerente, Almacenista (o con permiso extra) -->
+      <a *ngIf="permisos.verInventario" routerLink="/dashboard/inventory" class="action-btn">
         <span class="action-icon">📋</span>
         <span class="action-text">Inventario</span>
       </a>
-      <a routerLink="/dashboard/caja" class="action-btn">
+      <!-- Caja - Dueño, Gerente, Cajero -->
+      <a *ngIf="permisos.verCaja" routerLink="/dashboard/caja" class="action-btn">
         <span class="action-icon">💰</span>
         <span class="action-text">Caja</span>
       </a>
-      <a routerLink="/dashboard/reports" class="action-btn">
+      <!-- Reportes - Dueño, Gerente, Cajero (sus ventas) -->
+      <a *ngIf="permisos.verReportes" routerLink="/dashboard/reports" class="action-btn">
         <span class="action-icon">📊</span>
         <span class="action-text">Reportes</span>
+      </a>
+      <!-- Clientes - Dueño, Gerente -->
+      <a *ngIf="permisos.verClientes" routerLink="/dashboard/clientes" class="action-btn">
+        <span class="action-icon">👥</span>
+        <span class="action-text">Clientes</span>
+      </a>
+      <!-- Configuración - Dueño, Gerente -->
+      <a *ngIf="permisos.verConfiguracion" routerLink="/dashboard/settings" class="action-btn">
+        <span class="action-icon">⚙️</span>
+        <span class="action-text">Configuración</span>
       </a>
     </div>
   </div>

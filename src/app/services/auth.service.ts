@@ -1,264 +1,376 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { map } from 'rxjs/operators';
-import { Observable, throwError } from 'rxjs';
+import { map, tap, catchError } from 'rxjs/operators';
+import { Observable, throwError, BehaviorSubject, of } from 'rxjs';
 import { environment } from '../../environments/environment';
+
+/**
+ * Interfaz de sesión que viene del backend /api/system/session
+ */
+export interface SessionInfo {
+  userId: number | string;
+  rol: string;
+  negocioId: number | string;
+  email: string;
+  name: string;
+  primerAcceso?: boolean;
+  // 🆕 Permisos extra asignados temporalmente
+  permisosExtra?: {
+    modulos: string[];
+    asignadoPor?: string;
+    fechaAsignacion?: string;
+    nota?: string;
+  };
+}
 
 interface AuthResponse {
   accessToken?: string;
   refreshToken?: string;
-  token?: string; // fallback
-  primerAcceso?: boolean; // NUEVO: indica si es primer acceso del empleado
+  token?: string;
+  primerAcceso?: boolean;
+  usuario?: any;
+  negocioId?: number | string;
   [key: string]: any;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private base = `${environment.apiUrl}/api/auth`;
+  private systemBase = `${environment.apiUrl}/api/system`;
   private refreshEndpoint = `${this.base}/refresh`;
 
-  constructor(private http: HttpClient) {}
+  // 🔐 CACHÉ EN MEMORIA (no en storage)
+  private sessionCache: SessionInfo | null = null;
+  private sessionLoading = false;
+  private session$ = new BehaviorSubject<SessionInfo | null>(null);
 
-  private extractToken(res: any): string | undefined {
-    if (!res) return undefined;
-    return res.accessToken || res.token || (res.data && res.data.accessToken) || undefined;
-  }
+  // 🔄 Compatibilidad híbrida: seguimos leyendo de sessionStorage si existe (migración gradual)
+  private hybridMode = true;
 
-  private setToken(token?: string) {
-    if (token) {
-      sessionStorage.setItem('accessToken', token);
-    } else {
-      sessionStorage.removeItem('accessToken');
+  constructor(private http: HttpClient) {
+    // Al iniciar, intentar cargar sesión si hay algo en storage (modo híbrido)
+    if (this.hybridMode) {
+      this.loadFromStorageIfExists();
     }
   }
 
-  private setRefreshToken(rt?: string) {
-    if (rt) {
-      sessionStorage.setItem('refreshToken', rt);
-    } else {
-      sessionStorage.removeItem('refreshToken');
-    }
-  }
-
-  // Métodos duplicados eliminados. Solo queda una versión de logout, getToken y getRefreshToken.
+  // ============================================
+  // 🔐 MÉTODOS DE AUTENTICACIÓN
+  // ============================================
 
   login(payload: { email: string; password: string }): Observable<AuthResponse> {
-    // Backend expects fields in Spanish: { Correo, Password }
     const body = { Correo: payload.email, Password: payload.password };
-    return this.http.post<AuthResponse>(`${this.base}/login`, body).pipe(
-      map(res => {
-        const token = this.extractToken(res as any);
-        if (token) this.setToken(token);
-        if ((res as any).refreshToken) this.setRefreshToken((res as any).refreshToken);
-        
-        // Guardar usuario completo si viene en la respuesta
-        if ((res as any).usuario) {
-          try { sessionStorage.setItem('usuario', JSON.stringify((res as any).usuario)); } catch {}
-        }
-        
-        // ⭐ Guardar negocioId si viene en la respuesta JSON (además del JWT)
-        if ((res as any).usuario?.negocioId) {
-          sessionStorage.setItem('negocioId', String((res as any).usuario.negocioId));
-        } else if ((res as any).negocioId) {
-          sessionStorage.setItem('negocioId', String((res as any).negocioId));
-        }
-        
-        // 🆕 NUEVO: Guardar flag de primer acceso
-        if (typeof (res as any).primerAcceso === 'boolean') {
-          sessionStorage.setItem('primerAcceso', String((res as any).primerAcceso));
-        }
-        // Notificar posible cambio de negocioId (BusinessContextService subscribes by calling refresh externally)
-        
-        return res;
+    return this.http.post<AuthResponse>(`${this.base}/login`, body, { withCredentials: true }).pipe(
+      tap(res => {
+        // El backend ahora setea cookies HttpOnly automáticamente
+        // Solo guardamos en memoria/storage para compatibilidad
+        this.handleAuthResponse(res);
       })
     );
   }
 
-  register(payload: { businessName?: string; name: string; email: string; password: string }) {
-    // Backend expects { Nombre, Correo, Password } and may accept NombreNegocio when creating owner
+  register(payload: { businessName?: string; name: string; email: string; password: string }): Observable<AuthResponse> {
     const body: any = { Nombre: payload.name, Correo: payload.email, Password: payload.password };
-    if (payload.businessName && payload.businessName.trim()) {
+    if (payload.businessName?.trim()) {
       body.NombreNegocio = payload.businessName.trim();
     }
-    return this.http.post<AuthResponse>(`${this.base}/register`, body).pipe(
-      map(res => {
-        const token = this.extractToken(res as any);
-        if (token) this.setToken(token);
-        if ((res as any).refreshToken) this.setRefreshToken((res as any).refreshToken);
-        
-        // Guardar usuario completo si viene en la respuesta
-        if ((res as any).usuario) {
-          try { sessionStorage.setItem('usuario', JSON.stringify((res as any).usuario)); } catch {}
-        }
-        
-        // ⭐ Guardar negocioId si viene en la respuesta JSON (nuevo flujo)
-        if ((res as any).usuario?.negocioId) {
-          sessionStorage.setItem('negocioId', String((res as any).usuario.negocioId));
-        } else if ((res as any).negocioId) {
-          sessionStorage.setItem('negocioId', String((res as any).negocioId));
-        }
-        
-        // 🆕 NUEVO: Guardar flag de primer acceso
-        if (typeof (res as any).primerAcceso === 'boolean') {
-          sessionStorage.setItem('primerAcceso', String((res as any).primerAcceso));
-        }
-        // Notificar posible cambio de negocioId
-        
-        return res;
-      })
+    return this.http.post<AuthResponse>(`${this.base}/register`, body, { withCredentials: true }).pipe(
+      tap(res => this.handleAuthResponse(res))
     );
   }
 
   /**
-   * Attempt to refresh the access token using the stored refresh token.
-   * Returns an Observable that emits the server response containing new tokens.
+   * Refresh token usando cookies HttpOnly
+   * El backend lee la cookie refresh_token automáticamente
    */
   refreshToken(): Observable<AuthResponse> {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return throwError(() => new Error('No refresh token available'));
-    return this.http.post<AuthResponse>(this.refreshEndpoint, { refreshToken }).pipe(
-      map(res => {
-        const token = this.extractToken(res as any);
-        if (token) this.setToken(token);
-        if ((res as any).refreshToken) this.setRefreshToken((res as any).refreshToken);
-        return res;
+    // Enviamos body vacío - el backend usa la cookie
+    return this.http.post<AuthResponse>(this.refreshEndpoint, {}, { withCredentials: true }).pipe(
+      tap(res => this.handleAuthResponse(res)),
+      catchError(err => {
+        this.clearSession();
+        return throwError(() => err);
       })
     );
   }
 
-  logout() {
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
-    sessionStorage.removeItem('negocioId'); // ⭐ Limpiar también negocioId en logout
-    sessionStorage.removeItem('usuario');
-    sessionStorage.removeItem('primerAcceso'); // 🆕 NUEVO: Limpiar flag
-    // BusinessContextService will see null on refresh
-  }
-
-  getToken() {
-    return sessionStorage.getItem('accessToken') || undefined;
-  }
-
-  getRefreshToken() {
-    return sessionStorage.getItem('refreshToken') || undefined;
+  /**
+   * Logout: llama al backend para limpiar cookies HttpOnly
+   */
+  logout(): Observable<any> {
+    return this.http.post(`${this.base}/logout`, {}, { withCredentials: true }).pipe(
+      tap(() => this.clearSession()),
+      catchError(err => {
+        // Limpiar de todos modos aunque falle
+        this.clearSession();
+        return of(null);
+      })
+    );
   }
 
   /**
-   * Allow overriding the refresh endpoint if your API uses a different path.
+   * 🆕 Obtener datos de sesión desde el backend
+   * Útil porque el frontend ya no puede leer el JWT (es HttpOnly)
    */
-  setRefreshEndpoint(url: string) {
-    this.refreshEndpoint = url;
+  getSession(): Observable<SessionInfo> {
+    // Si ya tenemos caché válido, devolverlo
+    if (this.sessionCache) {
+      return of(this.sessionCache);
+    }
+
+    return this.http.get<SessionInfo>(`${this.systemBase}/session`, { withCredentials: true }).pipe(
+      tap(session => {
+        this.sessionCache = session;
+        this.session$.next(session);
+        // Los permisosExtra ya vienen en la sesión, no necesitamos localStorage
+      }),
+      catchError(err => {
+        // Si falla (401), limpiar sesión
+        this.clearSession();
+        return throwError(() => err);
+      })
+    );
   }
 
-  // --- Helpers for user context ---
-  private decodeTokenRaw(t?: string): any | undefined {
-    try {
-      const token = t || this.getToken();
-      if (!token) return undefined;
-      const payload = token.split('.')[1];
-      const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-      return JSON.parse(json);
-    } catch {
-      return undefined;
-    }
+  /**
+   * Observable reactivo de la sesión actual
+   */
+  get currentSession$(): Observable<SessionInfo | null> {
+    return this.session$.asObservable();
   }
+
+  /**
+   * 🆕 Obtener sesión actual de forma síncrona (desde caché en memoria)
+   * Útil para PermissionsService que necesita acceso síncrono
+   */
+  getCurrentSession(): SessionInfo | null {
+    return this.sessionCache;
+  }
+
+  /**
+   * Forzar recarga de sesión desde el backend
+   */
+  refreshSession(): Observable<SessionInfo> {
+    this.sessionCache = null;
+    return this.getSession();
+  }
+
+  // ============================================
+  // 🔧 HELPERS DE CONTEXTO (usan caché en memoria)
+  // ============================================
 
   getUserId(): number | string | undefined {
-    const d = this.decodeTokenRaw();
-    // Common JWT claim keys: sub, nameid, userId, uid
-    return d?.userId ?? d?.uid ?? d?.nameid ?? d?.sub ?? undefined;
+    // Primero caché en memoria
+    if (this.sessionCache?.userId) return this.sessionCache.userId;
+    // Fallback híbrido
+    return this.getFromHybridStorage('userId');
   }
 
   getBusinessId(): number | string | undefined {
-    // ⭐ Priorizar sessionStorage (respuesta JSON login/register) sobre JWT
-    const fromSession = sessionStorage.getItem('negocioId');
-    if (fromSession) return Number(fromSession) || fromSession;
-    
-    const d = this.decodeTokenRaw();
-    // Backend may include negocioId/tenantId in JWT claims
-    return d?.negocioId ?? d?.tenantId ?? undefined;
+    if (this.sessionCache?.negocioId) return this.sessionCache.negocioId;
+    return this.getFromHybridStorage('negocioId');
   }
 
-  getEmployeeId(): number | string | undefined {
-    const role = this.getRole();
-    // Solo devolver ID de empleado si el rol es "empleado"
-    if (role === 'empleado') {
-        return this.getUserId();
-    }
-    return undefined; // Dueños no son empleados
+  getRole(): string | undefined {
+    if (this.sessionCache?.rol) return this.sessionCache.rol.toLowerCase();
+    const stored = this.getFromHybridStorage('rol');
+    return stored ? String(stored).toLowerCase() : undefined;
   }
 
-  // AGREGAR método para obtener ID de usuario (dueño o empleado)
+  getUserName(): string | undefined {
+    if (this.sessionCache?.name) return this.sessionCache.name;
+    return this.getFromHybridStorage('name');
+  }
+
+  getUserEmail(): string | undefined {
+    if (this.sessionCache?.email) return this.sessionCache.email;
+    return this.getFromHybridStorage('email');
+  }
+
   getCurrentUserId(): number | string | undefined {
     return this.getUserId();
   }
 
-  getRole(): string | undefined {
-    try {
-      const stored = sessionStorage.getItem('usuario');
-      if (stored) {
-        const u = JSON.parse(stored || '{}');
-        const rol = u?.Rol ?? u?.rol;
-        if (rol) return String(rol).toLowerCase();
-      }
-    } catch {}
-    const d = this.decodeTokenRaw();
-    const fromJwt = d?.rol ?? d?.role ?? d?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
-    return fromJwt ? String(fromJwt).toLowerCase() : undefined;
+  getEmployeeId(): number | string | undefined {
+    const role = this.getRole();
+    if (role === 'empleado') return this.getUserId();
+    return undefined;
   }
 
-  getUserName(): string | undefined {
-    const d = this.decodeTokenRaw();
-    return d?.name ?? d?.nombre ?? d?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ?? undefined;
+  isDueno(): boolean {
+    const role = (this.getRole() || '').toLowerCase().replace('ñ', 'n');
+    return ['dueno', 'owner', 'admin', 'dueño'].some(r => role.includes(r));
   }
 
-  getUserEmail(): string | undefined {
-    const d = this.decodeTokenRaw();
-    return d?.email ?? d?.correo ?? d?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] ?? undefined;
+  getPrimerAcceso(): boolean {
+    if (this.sessionCache?.primerAcceso !== undefined) {
+      return this.sessionCache.primerAcceso;
+    }
+    // Fallback híbrido
+    const stored = sessionStorage.getItem('primerAcceso');
+    return stored === 'true';
   }
 
-  // Crear empleado (solo dueños)
-  createEmployee(payload: { Nombre: string; Apellido1: string; Apellido2?: string | null; Telefono: string; SueldoDiario?: number | null }): Observable<any> {
-    return this.http.post<any>(`${this.base}/empleado`, payload);
+  /**
+   * Verificar si hay sesión activa (basado en caché o storage híbrido)
+   */
+  isAuthenticated(): boolean {
+    if (this.sessionCache) return true;
+    // Fallback híbrido
+    return !!sessionStorage.getItem('accessToken') || !!sessionStorage.getItem('usuario');
   }
 
-  // AGREGAR métodos para gestión de perfil
-  getUserProfile(): Observable<any> {
-    return this.http.get(`${this.base}/perfil`);
+  /**
+   * Obtener token (solo para compatibilidad con interceptor híbrido)
+   * En modo 100% cookies, esto devolvería undefined
+   */
+  getToken(): string | undefined {
+    if (!this.hybridMode) return undefined;
+    return sessionStorage.getItem('accessToken') || undefined;
   }
 
-  deleteProfilePhoto(): Observable<any> {
-    return this.http.delete(`${this.base}/perfil/foto`);
+  getRefreshToken(): string | undefined {
+    if (!this.hybridMode) return undefined;
+    return sessionStorage.getItem('refreshToken') || undefined;
   }
 
-  // Obtener usuario guardado en storage (si existe)
   getCurrentUser(): any | null {
+    if (this.sessionCache) {
+      return {
+        id: this.sessionCache.userId,
+        nombre: this.sessionCache.name,
+        correo: this.sessionCache.email,
+        rol: this.sessionCache.rol,
+        negocioId: this.sessionCache.negocioId
+      };
+    }
     try {
       const stored = sessionStorage.getItem('usuario');
       return stored ? JSON.parse(stored) : null;
     } catch { return null; }
   }
 
-  // Conveniencia para verificar si es dueño
-  isDueno(): boolean {
-    const role = (this.getRole() || '').toLowerCase().replace('ñ', 'n');
-    return ['dueno', 'owner', 'admin'].some(r => role.includes(r));
+  // ============================================
+  // 🔄 MÉTODOS DE EMPLEADOS Y PERFIL
+  // ============================================
+
+  createEmployee(payload: { Nombre: string; Apellido1: string; Apellido2?: string | null; Telefono: string; SueldoDiario?: number | null }): Observable<any> {
+    return this.http.post<any>(`${this.base}/empleado`, payload, { withCredentials: true });
   }
 
-  // 🆕 NUEVO: Verificar si es primer acceso
-  getPrimerAcceso(): boolean {
-    const stored = sessionStorage.getItem('primerAcceso');
-    return stored === 'true';
+  getUserProfile(): Observable<any> {
+    return this.http.get(`${this.base}/perfil`, { withCredentials: true });
   }
 
-  // 🆕 NUEVO: Cambiar contraseña en primer acceso
+  deleteProfilePhoto(): Observable<any> {
+    return this.http.delete(`${this.base}/perfil/foto`, { withCredentials: true });
+  }
+
   cambiarPasswordPrimerAcceso(nuevaPassword: string): Observable<any> {
-    return this.http.put(`${this.base}/primer-acceso`, { NuevaPassword: nuevaPassword }).pipe(
-      map(res => {
-        // Actualizar flag en sessionStorage
+    return this.http.put(`${this.base}/primer-acceso`, { NuevaPassword: nuevaPassword }, { withCredentials: true }).pipe(
+      tap(() => {
+        // Actualizar caché
+        if (this.sessionCache) {
+          this.sessionCache.primerAcceso = false;
+        }
         sessionStorage.setItem('primerAcceso', 'false');
-        return res;
       })
     );
+  }
+
+  setRefreshEndpoint(url: string) {
+    this.refreshEndpoint = url;
+  }
+
+  // ============================================
+  // 🔧 MÉTODOS INTERNOS
+  // ============================================
+
+  private handleAuthResponse(res: AuthResponse) {
+    // Guardar en memoria
+    if (res.usuario) {
+      this.sessionCache = {
+        userId: res.usuario.id || res.usuario.userId,
+        rol: res.usuario.rol || res.usuario.Rol,
+        negocioId: res.usuario.negocioId || res.negocioId,
+        email: res.usuario.correo || res.usuario.email,
+        name: res.usuario.nombre || res.usuario.name,
+        primerAcceso: res.primerAcceso,
+        // Los permisosExtra vienen del backend
+        permisosExtra: res.usuario.permisosExtra || res['permisosExtra']
+      };
+      this.session$.next(this.sessionCache);
+    }
+
+    // Modo híbrido: también guardar en sessionStorage para compatibilidad
+    if (this.hybridMode) {
+      if (res.accessToken || res.token) {
+        sessionStorage.setItem('accessToken', res.accessToken || res.token || '');
+      }
+      if (res.refreshToken) {
+        sessionStorage.setItem('refreshToken', res.refreshToken);
+      }
+      if (res.usuario) {
+        sessionStorage.setItem('usuario', JSON.stringify(res.usuario));
+      }
+      if (res.usuario?.negocioId || res.negocioId) {
+        sessionStorage.setItem('negocioId', String(res.usuario?.negocioId || res.negocioId));
+      }
+      if (typeof res.primerAcceso === 'boolean') {
+        sessionStorage.setItem('primerAcceso', String(res.primerAcceso));
+      }
+    }
+  }
+
+  private clearSession() {
+    this.sessionCache = null;
+    this.session$.next(null);
+    
+    // Limpiar storage (modo híbrido)
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('negocioId');
+    sessionStorage.removeItem('usuario');
+    sessionStorage.removeItem('primerAcceso');
+  }
+
+  private loadFromStorageIfExists() {
+    try {
+      const usuario = sessionStorage.getItem('usuario');
+      if (usuario) {
+        const u = JSON.parse(usuario);
+        this.sessionCache = {
+          userId: u.id || u.userId,
+          rol: u.rol || u.Rol || '',
+          negocioId: u.negocioId || sessionStorage.getItem('negocioId') || '',
+          email: u.correo || u.email || '',
+          name: u.nombre || u.name || '',
+          primerAcceso: sessionStorage.getItem('primerAcceso') === 'true'
+        };
+        this.session$.next(this.sessionCache);
+      }
+    } catch {}
+  }
+
+  private getFromHybridStorage(key: string): any {
+    if (!this.hybridMode) return undefined;
+    
+    try {
+      // Intentar desde usuario guardado
+      const usuario = sessionStorage.getItem('usuario');
+      if (usuario) {
+        const u = JSON.parse(usuario);
+        switch (key) {
+          case 'userId': return u.id || u.userId;
+          case 'rol': return u.rol || u.Rol;
+          case 'negocioId': return u.negocioId || sessionStorage.getItem('negocioId');
+          case 'email': return u.correo || u.email;
+          case 'name': return u.nombre || u.name;
+        }
+      }
+      // Fallback directo
+      if (key === 'negocioId') return sessionStorage.getItem('negocioId');
+    } catch {}
+    return undefined;
   }
 }

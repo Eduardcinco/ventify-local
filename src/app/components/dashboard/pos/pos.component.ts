@@ -21,7 +21,6 @@ export class PosComponent {
   allProducts: any[] = [];
   searchTerm = '';
   paymentMethod = 'efectivo';
-  clienteId: number | null = null;
   cajaState: { abierta: boolean; caja: any | null } = { abierta: false, caja: null };
   
   // Cálculo de cambio
@@ -178,7 +177,6 @@ export class PosComponent {
       items, 
       total: this.total(), 
       paymentMethod: this.paymentMethod, 
-      clienteId: this.clienteId, 
       cajaId: this.cajaState.caja.id,
       empleadoId: this.auth.getEmployeeId(),
       negocioId: this.auth.getBusinessId(),

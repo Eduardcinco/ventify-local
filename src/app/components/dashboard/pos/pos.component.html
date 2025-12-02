@@ -119,7 +119,7 @@
       </div>
 
       <!-- OPCIONES DE PAGO -->
-      <div class="checkout-section" *ngIf="cart.length > 0">
+      <div class="checkout-section" *ngIf="cart().length > 0">
         <h4>Información de Pago</h4>
 
         <div class="form-group">
@@ -127,7 +127,7 @@
           <select id="paymentMethod" [(ngModel)]="paymentMethod" class="select-input">
             <option value="efectivo">💵 Efectivo</option>
             <option value="tarjeta">💳 Tarjeta</option>
-            <option value="credito">📋 Crédito</option>
+            
             <option value="transferencia">🏦 Transferencia</option>
           </select>
         </div>
@@ -159,16 +159,7 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="clienteId">Cliente (Opcional)</label>
-          <input 
-            id="clienteId" 
-            type="number" 
-            [(ngModel)]="clienteId" 
-            placeholder="ID del cliente"
-            class="text-input"
-          />
-        </div>
+        
 
         <button 
           class="btn-checkout" 

@@ -101,8 +101,7 @@ export class SettingsComponent {
     { id: 'inventario', nombre: 'Inventario', icono: '📦', descripcion: 'Ver productos, agregar stock, registrar mermas' },
     { id: 'pos', nombre: 'Punto de Venta', icono: '🧾', descripcion: 'Realizar ventas, cobrar, imprimir tickets' },
     { id: 'caja', nombre: 'Caja', icono: '💰', descripcion: 'Abrir/cerrar caja, ver movimientos' },
-    { id: 'reportes', nombre: 'Reportes', icono: '📊', descripcion: 'Ver reportes de ventas propias' },
-    { id: 'clientes', nombre: 'Clientes', icono: '👥', descripcion: 'Ver y gestionar clientes' }
+    { id: 'reportes', nombre: 'Reportes', icono: '📊', descripcion: 'Ver reportes de ventas propias' }
   ];
 
   constructor(
@@ -628,8 +627,6 @@ export class SettingsComponent {
         return ['dueno', 'dueño', 'gerente', 'cajero'].some(r => rolNorm.includes(r));
       case 'reportes':
         return ['dueno', 'dueño', 'gerente', 'cajero'].some(r => rolNorm.includes(r));
-      case 'clientes':
-        return ['dueno', 'dueño', 'gerente'].some(r => rolNorm.includes(r));
       default:
         return false;
     }

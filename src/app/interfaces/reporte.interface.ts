@@ -35,7 +35,6 @@ export interface ReporteVentasAgregado {
   ventaMaxima: number;
   ventaMinima: number;
   cajerosActivos: number;
-  clientesUnicos: number;
   totalEfectivo: number;
   totalTarjeta: number;
   totalTransferencia: number;

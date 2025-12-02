@@ -56,11 +56,7 @@
         <span class="action-icon">📊</span>
         <span class="action-text">Reportes</span>
       </a>
-      <!-- Clientes - Dueño, Gerente -->
-      <a *ngIf="permisos.verClientes" routerLink="/dashboard/clientes" class="action-btn">
-        <span class="action-icon">👥</span>
-        <span class="action-text">Clientes</span>
-      </a>
+      
       <!-- Configuración - Dueño, Gerente -->
       <a *ngIf="permisos.verConfiguracion" routerLink="/dashboard/settings" class="action-btn">
         <span class="action-icon">⚙️</span>

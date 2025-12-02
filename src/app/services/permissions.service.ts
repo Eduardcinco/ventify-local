@@ -21,7 +21,7 @@ export type RolUsuario = 'dueno' | 'gerente' | 'cajero' | 'almacenista';
 /**
  * Módulos que se pueden asignar como permisos extra
  */
-export type ModuloExtra = 'inventario' | 'pos' | 'caja' | 'reportes' | 'clientes';
+export type ModuloExtra = 'inventario' | 'pos' | 'caja' | 'reportes';
 
 export interface PermisosExtra {
   modulos: ModuloExtra[];
@@ -34,7 +34,6 @@ export interface PermisosPorRol {
   // Navegación - qué secciones puede ver
   verInicio: boolean;
   verInventario: boolean;
-  verClientes: boolean;
   verPuntoVenta: boolean;
   verCaja: boolean;
   verReportes: boolean;
@@ -204,9 +203,6 @@ export class PermissionsService {
           permisosCombinados.verReportesPropios = true;
           // No damos reportes globales, solo propios
           break;
-        case 'clientes':
-          permisosCombinados.verClientes = true;
-          break;
       }
     });
     
@@ -266,7 +262,7 @@ export class PermissionsService {
     
     if (permisos.verInicio) rutas.push('/dashboard');
     if (permisos.verInventario) rutas.push('/dashboard/inventory');
-    if (permisos.verClientes) rutas.push('/dashboard/clientes');
+    // clientes eliminado: no ruta
     if (permisos.verPuntoVenta) rutas.push('/dashboard/pos');
     if (permisos.verCaja) rutas.push('/dashboard/caja');
     if (permisos.verReportes) rutas.push('/dashboard/reports');
@@ -313,7 +309,6 @@ export class PermissionsService {
         return {
           verInicio: true,
           verInventario: true,
-          verClientes: true,
           verPuntoVenta: true,
           verCaja: true,
           verReportes: true,
@@ -356,7 +351,6 @@ export class PermissionsService {
         return {
           verInicio: true,
           verInventario: true,
-          verClientes: true,
           verPuntoVenta: true,
           verCaja: true,
           verReportes: true,
@@ -399,7 +393,6 @@ export class PermissionsService {
         return {
           verInicio: true,
           verInventario: false,         // ❌ No ve inventario
-          verClientes: false,           // ❌ No ve clientes
           verPuntoVenta: true,          // ✅ Sí ve punto de venta
           verCaja: true,                // ✅ Puede abrir/cerrar su caja
           verReportes: true,            // ✅ Pero solo sus ventas
@@ -442,7 +435,6 @@ export class PermissionsService {
         return {
           verInicio: true,
           verInventario: true,          // ✅ Sí ve inventario
-          verClientes: false,           // ❌ No ve clientes
           verPuntoVenta: false,         // ❌ No ve punto de venta
           verCaja: false,               // ❌ No ve caja
           verReportes: false,           // ❌ No ve reportes

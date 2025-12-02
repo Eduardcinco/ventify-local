@@ -24,11 +24,7 @@
       </span>
     </a>
     
-    <!-- 👥 Clientes - Dueño, Gerente -->
-    <a *ngIf="permisos.verClientes" routerLink="/dashboard/clientes" routerLinkActive="active" (click)="closeOnSmall()">
-      <span class="nav-icon">👥</span>
-      <span>Clientes</span>
-    </a>
+
     
     <!-- 💳 Punto de Venta - Dueño, Gerente, Cajero -->
     <a *ngIf="permisos.verPuntoVenta" routerLink="/dashboard/pos" routerLinkActive="active" (click)="closeOnSmall()">

@@ -17,8 +17,7 @@ export class HomeComponent {
   currentUser: any = null;
   stats = [
     { label: 'Ventas hoy', value: 0 },
-    { label: 'Productos', value: 0 },
-    { label: 'Clientes', value: 0 }
+    { label: 'Productos', value: 0 }
   ];
   products = [
     { name: 'Producto demo', category: 'General', stock: 10, price: '$10' }

@@ -18,6 +18,10 @@ export class ReportsService {
 
   constructor(private http: HttpClient, private biz: BusinessContextService) {}
 
+  // Modo debug para inspeccionar parámetros y respuestas del backend
+  private debugMode = false;
+  enableDebug(enable: boolean) { this.debugMode = enable; }
+
   private buildHeaders(): { headers?: HttpHeaders } {
     const negocioId = this.biz.getNegocioId();
     if (this.biz.shouldSendDebugHeader() && negocioId) {
@@ -42,15 +46,21 @@ export class ReportsService {
       anio: 'PorAnio'
     };
     const tipoAgrupacionApi = agrupacionMap[filtro.tipoAgrupacion] || filtro.tipoAgrupacion;
-
-    // Construir rango con hora para evitar problemas de zona horaria
-    const start = `${filtro.fechaInicio}T00:00:00`;
-    const end = `${filtro.fechaFin}T23:59:59`;
+    
+    // Construir rango con hora y enviar como ISO para evitar problemas de zona horaria
+    const inicio = new Date(filtro.fechaInicio);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(filtro.fechaFin);
+    fin.setHours(23, 59, 59, 999);
+    const fechaInicioISO = inicio.toISOString();
+    const fechaFinISO = fin.toISOString();
+    const tzOffsetMinutes = -inicio.getTimezoneOffset(); // minutos al este de UTC
 
     let params = new HttpParams()
-      .set('fechaInicio', start)
-      .set('fechaFin', end)
-      .set('tipoAgrupacion', tipoAgrupacionApi);
+      .set('fechaInicio', fechaInicioISO)
+      .set('fechaFin', fechaFinISO)
+      .set('tipoAgrupacion', tipoAgrupacionApi)
+      .set('tzOffsetMinutes', String(tzOffsetMinutes));
 
     if (filtro.metodoPago) {
       params = params.set('metodoPago', filtro.metodoPago);
@@ -68,11 +78,27 @@ export class ReportsService {
       params = params.set('negocioId', String(negocioId));
     }
 
+    if (this.debugMode) {
+      console.debug('[ReportsService] GET /reportes/ventas', {
+        tipoAgrupacion: tipoAgrupacionApi,
+        fechaInicio: fechaInicioISO,
+        fechaFin: fechaFinISO,
+        tzOffsetMinutes,
+        negocioId
+      });
+    }
+
     return this.http.get<ReporteVentasCompleto>(`${this.base}/reportes/ventas`, {
       params,
       withCredentials: true,
       ...this.buildHeaders()
-    });
+    }).pipe(
+      tap(resp => {
+        if (this.debugMode) {
+          console.debug('[ReportsService] Ventas response', resp);
+        }
+      })
+    );
   }
 
   /**

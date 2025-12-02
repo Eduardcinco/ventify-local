@@ -20,7 +20,6 @@ export const routes: Routes = [
 			{ path: 'inventory/:id', loadComponent: () => import('./components/product-form/product-form.component').then(m => m.ProductFormComponent) },
 			{ path: 'pos', loadComponent: () => import('./components/dashboard/pos/pos.component').then(m => m.PosComponent) },
 			{ path: 'caja', loadComponent: () => import('./components/dashboard/caja/caja.component').then(m => m.CajaComponent) },
-			{ path: 'clientes', loadComponent: () => import('./components/dashboard/customers/customers.component').then(m => m.CustomersComponent) },
 			{ path: 'proveedores', loadComponent: () => import('./components/dashboard/suppliers/suppliers.component').then(m => m.SuppliersComponent) },
 			{ path: 'facturacion', loadComponent: () => import('./components/dashboard/billing/billing.component').then(m => m.BillingComponent) },
 			{ path: 'cuentas/por-cobrar', loadComponent: () => import('./components/dashboard/accounts-receivable/accounts-receivable.component').then(m => m.AccountsReceivableComponent) },

@@ -7,6 +7,8 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AiService, AiChatMessage } from '../../services/ai.service';
+import { AuthService } from '../../services/auth.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-ai-chat-float',
@@ -25,7 +27,24 @@ export class AiChatFloatComponent {
   loading = signal(false);
   error = signal<string | null>(null);
 
-  constructor(private aiService: AiService) {}
+  // Auth state
+  isAuthenticated = signal(false);
+  isOnLoginRoute = signal(false);
+
+  constructor(private aiService: AiService, private auth: AuthService, private router: Router) {
+    // Inicializar estado de autenticación y ruta
+    this.checkAuth();
+    this.isOnLoginRoute.set(this.router.url.includes('/login'));
+
+    // Reaccionar a cambios de sesión
+    this.auth.currentSession$.subscribe(session => {
+      this.isAuthenticated.set(!!session || this.auth.isAuthenticated());
+    });
+  }
+
+  private checkAuth(): void {
+    this.isAuthenticated.set(this.auth.isAuthenticated());
+  }
 
   toggleChat(): void {
     this.isOpen.set(!this.isOpen());
@@ -41,6 +60,12 @@ export class AiChatFloatComponent {
   enviarPregunta(): void {
     const question = this.currentQuestion().trim();
     if (!question || this.loading()) return;
+
+    // No enviar si no está autenticado
+    if (!this.isAuthenticated()) {
+      this.error.set('Inicia sesión para usar el asistente.');
+      return;
+    }
 
     // Agregar pregunta del usuario
     const newMessages = [

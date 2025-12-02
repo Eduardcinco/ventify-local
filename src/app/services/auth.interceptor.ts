@@ -40,6 +40,7 @@ export class AuthInterceptor implements HttpInterceptor {
     return next.handle(authReq).pipe(
       catchError((err: any) => {
         if (err instanceof HttpErrorResponse && err.status === 401) {
+          const isAiEndpoint = req.url.includes('/api/ai/');
           // Detectar invalidación de versión de token o fallo de auth
           const msg = (err.error?.message || '').toLowerCase();
           const isTokenVersionMismatch = msg.includes('version') || msg.includes('tokenversion');
@@ -48,7 +49,13 @@ export class AuthInterceptor implements HttpInterceptor {
           const isRegisterEndpoint = req.url.includes('/register');
           
           // No intentar refresh en endpoints de auth
-          if (isTokenVersionMismatch || isRefreshEndpoint || isLoginEndpoint || isRegisterEndpoint) {
+          // Tampoco forzar refresh/cierre de sesión para endpoints de IA (evitar cascadas al fallar permisos/negocio)
+          if (isTokenVersionMismatch || isRefreshEndpoint || isLoginEndpoint || isRegisterEndpoint || isAiEndpoint) {
+            if (isAiEndpoint) {
+              // Informar y no tocar la sesión
+              this.toast.warning('El asistente no pudo responder. Intenta de nuevo.');
+              return throwError(() => err);
+            }
             if (!isLoginEndpoint && !isRegisterEndpoint) {
               this.toast.warning('Sesión invalidada. Inicia sesión nuevamente.');
               this.auth.logout().subscribe();

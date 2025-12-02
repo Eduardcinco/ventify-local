@@ -40,6 +40,11 @@
   </div>
 
   <div class="ai-chat-messages">
+    @if (!isAuthenticated()) {
+      <div class="ai-chat-info">
+        🔒 Inicia sesión para usar el asistente.
+      </div>
+    }
     @for (msg of messages(); track $index) {
       <div class="ai-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
         <div class="ai-message-avatar">
@@ -90,11 +95,11 @@
       placeholder="Pregunta sobre Ventify..."
       rows="2"
       (keypress)="handleKeyPress($event)"
-      [disabled]="loading()"></textarea>
+      [disabled]="loading() || !isAuthenticated()"></textarea>
     <button 
       class="ai-send-button" 
       (click)="enviarPregunta()" 
-      [disabled]="!currentQuestion().trim() || loading()"
+      [disabled]="!currentQuestion().trim() || loading() || !isAuthenticated()"
       title="Enviar (Enter)">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="22" x2="11" y1="2" y2="13"></line>

@@ -1,5 +1,8 @@
+
 <div class="app-root">
 	<router-outlet></router-outlet>
 	<app-toast></app-toast>
-	<app-ai-chat-float></app-ai-chat-float>
+	@if (showAiChat()) {
+		<app-ai-chat-float></app-ai-chat-float>
+	}
 </div>

@@ -6,6 +6,8 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { ProductsService } from '../../services/products.service';
 import { CategoriesService } from '../../services/categories.service';
+import { AiService } from '../../services/ai.service';
+import { ToastService } from '../../services/toast.service';
 
 @Component({
   selector: 'app-product-form',
@@ -23,13 +25,20 @@ export class ProductFormComponent {
   selectedCategoryId: number | null = null;
   loadingCategories = true;
 
+  // Estado para generar posts con IA
+  generandoPost = false;
+  copysGenerados: string[] = [];
+  mostrarCopys = false;
+
   constructor(
     private fb: FormBuilder,
     private products: ProductsService,
     private cats: CategoriesService,
     private router: Router,
     private route: ActivatedRoute,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private aiService: AiService,
+    private toast: ToastService
   ) {
     this.form = this.fb.group({
       nombre: ['', Validators.required],
@@ -158,5 +167,52 @@ export class ProductFormComponent {
 
   cancel() {
     this.router.navigate(['/dashboard/inventory']);
+  }
+
+  // ============================================
+  // 🤖 GENERAR COPYS CON IA
+  // ============================================
+
+  generarCopys(plataforma: 'instagram' | 'facebook' | 'tiktok' | 'todas' = 'todas'): void {
+    if (!this.isEdit || !this.editingId) {
+      this.toast.warning('Primero guarda el producto para generar copys');
+      return;
+    }
+
+    this.generandoPost = true;
+    this.copysGenerados = [];
+    this.mostrarCopys = false;
+
+    this.aiService.generarPost(this.editingId, plataforma).subscribe({
+      next: (response) => {
+        // Separar los copys (están separados por líneas en blanco)
+        this.copysGenerados = response.copies
+          .split(/\n{2,}/)
+          .filter(c => c.trim())
+          .map(c => c.trim());
+        
+        this.mostrarCopys = true;
+        this.generandoPost = false;
+        this.toast.success('¡Copys generados con IA!');
+      },
+      error: (err) => {
+        console.error('Error generando copys:', err);
+        this.toast.error('No pude generar los copys. Intenta de nuevo.');
+        this.generandoPost = false;
+      }
+    });
+  }
+
+  copiarCopy(copy: string): void {
+    navigator.clipboard.writeText(copy).then(() => {
+      this.toast.success('¡Copiado al portapapeles!');
+    }).catch(err => {
+      console.error('Error copiando:', err);
+      this.toast.error('No se pudo copiar');
+    });
+  }
+
+  cerrarCopys(): void {
+    this.mostrarCopys = false;
   }
 }

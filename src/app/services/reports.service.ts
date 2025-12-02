@@ -34,10 +34,23 @@ export class ReportsService {
    * Obtener reporte de ventas completo con datos para visualizar
    */
   getReporteVentas(filtro: FiltroReporte): Observable<ReporteVentasCompleto> {
+    // Algunos backends esperan valores distintos para agrupación; normalizamos aquí
+    const agrupacionMap: Record<string, string> = {
+      dia: 'PorDia',
+      semana: 'PorSemana',
+      mes: 'PorMes',
+      anio: 'PorAnio'
+    };
+    const tipoAgrupacionApi = agrupacionMap[filtro.tipoAgrupacion] || filtro.tipoAgrupacion;
+
+    // Construir rango con hora para evitar problemas de zona horaria
+    const start = `${filtro.fechaInicio}T00:00:00`;
+    const end = `${filtro.fechaFin}T23:59:59`;
+
     let params = new HttpParams()
-      .set('fechaInicio', filtro.fechaInicio)
-      .set('fechaFin', filtro.fechaFin)
-      .set('tipoAgrupacion', filtro.tipoAgrupacion);
+      .set('fechaInicio', start)
+      .set('fechaFin', end)
+      .set('tipoAgrupacion', tipoAgrupacionApi);
 
     if (filtro.metodoPago) {
       params = params.set('metodoPago', filtro.metodoPago);
@@ -47,6 +60,12 @@ export class ReportsService {
       filtro.cajerosIds.forEach(id => {
         params = params.append('cajerosIds', id.toString());
       });
+    }
+
+    // Adjuntar negocioId si está disponible y el backend lo requiere
+    const negocioId = this.biz.getNegocioId();
+    if (negocioId) {
+      params = params.set('negocioId', String(negocioId));
     }
 
     return this.http.get<ReporteVentasCompleto>(`${this.base}/reportes/ventas`, {

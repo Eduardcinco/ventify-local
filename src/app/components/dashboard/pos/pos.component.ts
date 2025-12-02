@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -16,7 +16,7 @@ import { AlertasService } from '../../../services/alertas.service';
   styleUrls: ['./pos.component.css']
 })
 export class PosComponent {
-  cart: any[] = [];
+  cart = signal<any[]>([]);
   products: any[] = [];
   allProducts: any[] = [];
   searchTerm = '';
@@ -91,7 +91,7 @@ export class PosComponent {
       return;
     }
 
-    const found = this.cart.find(c => c.id === p.id);
+    const found = this.cart().find(c => c.id === p.id);
     
     if (found) {
       if (found.qty >= stock) {
@@ -99,25 +99,32 @@ export class PosComponent {
         return;
       }
       found.qty = (found.qty || 1) + 1;
+      this.cart.set([...this.cart()]);
     } else {
-      this.cart.push({ 
+      this.cart.set([...this.cart(), { 
         ...p, 
         qty: 1,
         precioUnitario: p.precioVenta || p.price || 0
-      });
+      }]);
     }
   }
 
   removeItem(i: number){ 
-    this.cart.splice(i, 1); 
+    const next = [...this.cart()];
+    next.splice(i, 1);
+    this.cart.set(next);
   }
 
   updateQty(item: any, newQty: number) {
     const stock = item.stock || item.cantidadDisponible || 0;
     
     if (newQty <= 0) {
-      const index = this.cart.indexOf(item);
-      if (index > -1) this.cart.splice(index, 1);
+      const index = this.cart().indexOf(item);
+      if (index > -1) {
+        const next = [...this.cart()];
+        next.splice(index, 1);
+        this.cart.set(next);
+      }
       return;
     }
 
@@ -128,11 +135,10 @@ export class PosComponent {
     }
 
     item.qty = newQty;
+    this.cart.set([...this.cart()]);
   }
 
-  total(){ 
-    return this.cart.reduce((s, t) => s + ((t.precioUnitario || t.precioVenta || t.price || 0) * (t.qty || 1)), 0); 
-  }
+  total = computed(() => this.cart().reduce((s, t) => s + ((t.precioUnitario || t.precioVenta || t.price || 0) * (t.qty || 1)), 0));
 
   get cambio() {
     const total = this.total();
@@ -152,7 +158,7 @@ export class PosComponent {
       return;
     }
 
-    if (this.cart.length === 0) {
+    if (this.cart().length === 0) {
       alert('El carrito está vacío');
       return;
     }
@@ -162,7 +168,7 @@ export class PosComponent {
       return;
     }
 
-    const items = this.cart.map(i => ({ 
+    const items = this.cart().map(i => ({ 
       productoId: i.id, 
       cantidad: i.qty || 1, 
       precio: i.precioUnitario || i.precioVenta || i.price || 0 
@@ -186,7 +192,7 @@ export class PosComponent {
       next: (res) => {
         this.loading = false;
         alert(`Venta registrada con éxito\n\nTotal: $${this.total().toFixed(2)}\nRecibido: $${this.montoRecibido.toFixed(2)}\nCambio: $${this.cambio.toFixed(2)}`);
-        this.cart = [];
+        this.cart.set([]);
         this.montoRecibido = 0;
         this.searchTerm = '';
         this.loadProducts(); // Recargar para actualizar stock
@@ -204,7 +210,7 @@ export class PosComponent {
 
   clearCart() {
     if (confirm('¿Estás seguro de vaciar el carrito?')) {
-      this.cart = [];
+      this.cart.set([]);
       this.montoRecibido = 0;
     }
   }

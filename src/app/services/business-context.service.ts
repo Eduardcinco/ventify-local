@@ -14,7 +14,7 @@ export class BusinessContextService {
   negocioId$ = this.negocioIdSubject.asObservable();
 
   // Flag interna para enviar header de depuración. Mantener en false en producción.
-  private debugHeaders = false;
+  private debugHeaders = true;
 
   constructor(private auth: AuthService) {
     this.refresh();

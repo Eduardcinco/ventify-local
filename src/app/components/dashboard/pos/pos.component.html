@@ -66,18 +66,18 @@
             Caja abierta (ID: {{ cajaState.caja.id }}) · Saldo: {{ cajaState.caja.montoActual | currency:'MXN' }}
           </small>
         </div>
-        <button *ngIf="cart.length > 0" class="btn-clear-cart" (click)="clearCart()">Vaciar</button>
+        <button *ngIf="cart().length > 0" class="btn-clear-cart" (click)="clearCart()">Vaciar</button>
       </div>
 
       <!-- CARRITO -->
       <div class="cart-container">
-        <div *ngIf="cart.length === 0" class="empty-cart">
+        <div *ngIf="cart().length === 0" class="empty-cart">
           <p>Carrito vacío</p>
           <small>Agrega productos desde el panel izquierdo</small>
         </div>
 
-        <div class="cart-items" *ngIf="cart.length > 0">
-          <div class="cart-item" *ngFor="let item of cart; let i = index">
+        <div class="cart-items" *ngIf="cart().length > 0">
+          <div class="cart-item" *ngFor="let item of cart(); let i = index">
             <div class="cart-item-info">
               <div class="cart-item-name">{{ item.nombre || item.name }}</div>
               <div class="cart-item-price">${{ item.precioUnitario || item.precioVenta || item.price }} c/u</div>
@@ -173,7 +173,7 @@
         <button 
           class="btn-checkout" 
           (click)="createSale()" 
-          [disabled]="loading || !cajaState.abierta || cart.length === 0"
+          [disabled]="loading || !cajaState.abierta || cart().length === 0"
         >
           {{ loading ? '⏳ Procesando...' : '✅ Finalizar Venta' }}
         </button>

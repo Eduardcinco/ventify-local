@@ -4,6 +4,15 @@ import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 
+export interface MovimientoCaja {
+  tipo: 'entrada' | 'salida';
+  monto: number;
+  categoria: string;
+  descripcion?: string;
+  metodoPago?: string;
+  referencia?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CajaService {
   private base = `${environment.apiUrl}/api/caja`;
@@ -38,5 +47,27 @@ export class CajaService {
 
   setCurrent(abierta: boolean, caja: any | null) {
     this.currentSubject.next({ abierta, caja });
+  }
+
+  // Registrar movimiento (entrada/salida)
+  registrarMovimiento(movimiento: MovimientoCaja): Observable<any> {
+    return this.http.post(`${this.base}/movimiento`, movimiento).pipe(
+      tap(() => this.getCurrent().subscribe()) // Refrescar estado de caja
+    );
+  }
+
+  // Obtener movimientos
+  getMovimientos(desde?: Date, hasta?: Date, tipo?: string): Observable<any> {
+    let params = new HttpParams();
+    if (desde) params = params.set('desde', desde.toISOString());
+    if (hasta) params = params.set('hasta', hasta.toISOString());
+    if (tipo) params = params.set('tipo', tipo);
+    
+    return this.http.get(`${this.base}/movimientos`, { params });
+  }
+
+  // Obtener resumen
+  getResumen(): Observable<any> {
+    return this.http.get(`${this.base}/resumen`);
   }
 }

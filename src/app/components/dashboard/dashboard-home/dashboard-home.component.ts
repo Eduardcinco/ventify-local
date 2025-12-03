@@ -1,9 +1,14 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
 import { PermissionsService, PermisosPorRol } from '../../../services/permissions.service';
 import { jwtDecode } from 'jwt-decode';
+import { ProductsService } from '../../../services/products.service';
+import { ReportsService } from '../../../services/reports.service';
+import { AlertasService } from '../../../services/alertas.service';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard-home',
@@ -12,7 +17,7 @@ import { jwtDecode } from 'jwt-decode';
   templateUrl: './dashboard-home.component.html',
   styleUrls: ['./dashboard-home.component.css']
 })
-export class DashboardHomeComponent implements OnInit {
+export class DashboardHomeComponent implements OnInit, OnDestroy {
   currentUser: any = {
     name: 'Usuario',
     businessName: 'Mi Negocio',
@@ -21,19 +26,13 @@ export class DashboardHomeComponent implements OnInit {
   greeting: string = '';
   firstName: string = '';
 
-  // Estadísticas del negocio (mock data)
+  // Estadísticas en vivo
   stats = {
-    totalProducts: 5,
+    totalProducts: 0,
     todaySales: 0,
-    totalRevenue: 210.00,
+    totalRevenue: 0,
     lowStockProducts: 0
   };
-
-  // Últimas ventas
-  recentSales = [
-    { id: 1, date: '2024-01-15', amount: 85.00, items: 2 },
-    { id: 2, date: '2024-01-14', amount: 125.00, items: 2 }
-  ];
 
   // Productos con bajo stock
   lowStockAlert = true; // Si hay productos con bajo stock
@@ -41,9 +40,15 @@ export class DashboardHomeComponent implements OnInit {
   // 🔐 Permisos del usuario actual
   permisos: PermisosPorRol;
 
+  private _navSub?: Subscription;
+
   constructor(
     private authService: AuthService,
-    private permissionsService: PermissionsService
+    private permissionsService: PermissionsService,
+    private productsService: ProductsService,
+    private reportsService: ReportsService,
+    private alertasService: AlertasService,
+    private router: Router
   ) {
     // Inicializar permisos en el constructor
     this.permisos = this.permissionsService.getPermisos();
@@ -59,6 +64,11 @@ export class DashboardHomeComponent implements OnInit {
     }
     this.setGreeting();
     this.setFirstName();
+    this.loadStats();
+    // Refrescar al entrar de nuevo a esta vista
+    this._navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
+      this.loadStats();
+    });
     
     // Suscribirse a cambios de sesión para actualizar permisos
     this.authService.currentSession$.subscribe(session => {
@@ -66,6 +76,10 @@ export class DashboardHomeComponent implements OnInit {
         this.permisos = this.permissionsService.getPermisos();
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this._navSub?.unsubscribe();
   }
 
   setGreeting(): void {
@@ -94,5 +108,42 @@ export class DashboardHomeComponent implements OnInit {
 
   viewReports(): void {
     console.log('Ir a reportes');
+  }
+
+  private loadStats(): void {
+    // Productos activos
+    this.productsService.list('activos').subscribe({
+      next: (products) => {
+        this.stats.totalProducts = products?.length || 0;
+      },
+      error: () => { this.stats.totalProducts = 0; }
+    });
+
+    // Stock bajo
+    this.alertasService.getProductosStockBajo().subscribe({
+      next: (items) => this.stats.lowStockProducts = items?.length || 0,
+      error: () => { this.stats.lowStockProducts = 0; }
+    });
+
+    // Ventas de hoy (conteo e ingresos) vía reportes
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const fecha = `${y}-${m}-${d}`;
+    this.reportsService.getReporteVentas({
+      fechaInicio: fecha,
+      fechaFin: fecha,
+      tipoAgrupacion: 'dia'
+    }).subscribe({
+      next: (rep) => {
+        this.stats.todaySales = rep?.resumenGeneral?.totalVentas || 0;
+        this.stats.totalRevenue = rep?.resumenGeneral?.totalIngresos || 0;
+      },
+      error: () => {
+        this.stats.todaySales = 0;
+        this.stats.totalRevenue = 0;
+      }
+    });
   }
 }

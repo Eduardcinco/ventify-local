@@ -132,7 +132,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   getUserDisplayName(): string {
-    return this.authService.getUserName() || this.authService.getUserEmail() || 'Usuario';
+    const fullName = this.authService.getUserName();
+    if (fullName && fullName.trim().length > 0) {
+      return fullName.trim().split(' ')[0];
+    }
+    const email = this.authService.getUserEmail();
+    if (email && email.includes('@')) {
+      return email.split('@')[0];
+    }
+    return 'Usuario';
   }
 
   isDueno(): boolean { return this.authService.isDueno(); }

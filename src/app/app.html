@@ -1,6 +1,10 @@
 
 <div class="app-root">
-	<router-outlet></router-outlet>
+  <!-- Botón hamburguesa para móvil -->
+  <button class="hamburger" (click)="toggleSidebar()" aria-label="Abrir menú">
+    ☰
+  </button>
+  <router-outlet></router-outlet>
 	<app-toast></app-toast>
 	@if (showAiChat()) {
 		<app-ai-chat-float></app-ai-chat-float>

@@ -1,4 +1,5 @@
 import { Component, computed, signal } from '@angular/core';
+import { Router, NavigationEnd } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -7,6 +8,7 @@ import { VentasService } from '../../../services/ventas.service';
 import { CajaService } from '../../../services/caja.service';
 import { AuthService } from '../../../services/auth.service';
 import { AlertasService } from '../../../services/alertas.service';
+import { ModalService } from '../../../services/modal.service';
 
 @Component({
   selector: 'app-pos',
@@ -22,6 +24,7 @@ export class PosComponent {
   searchTerm = '';
   paymentMethod = 'efectivo';
   cajaState: { abierta: boolean; caja: any | null } = { abierta: false, caja: null };
+  isCartCollapsed = false;
   
   // Cálculo de cambio
   montoRecibido: number = 0;
@@ -33,12 +36,22 @@ export class PosComponent {
     private ventasService: VentasService, 
     private cajaService: CajaService,
     private auth: AuthService,
-    private alertasService: AlertasService
+    private alertasService: AlertasService,
+    private router: Router,
+    private modal: ModalService
   ) {
     this.loadProducts();
     this.loadCaja();
     // Suscribirse a cambios de caja abierta/cerrada en tiempo real
     this.cajaService.current$.subscribe(state => { this.cajaState = state; });
+
+    // Auto-refresh al entrar a la ruta POS
+    this.router.events.subscribe(ev => {
+      if (ev instanceof NavigationEnd && ev.urlAfterRedirects.includes('/dashboard/pos')) {
+        this.loadProducts();
+        this.loadCaja();
+      }
+    });
   }
 
   loadProducts(){
@@ -86,15 +99,19 @@ export class PosComponent {
     const stock = p.stock || p.cantidadDisponible || 0;
     
     if (stock <= 0) {
-      alert(`${p.nombre || p.name} no tiene stock disponible`);
+      this.modal.warning(`${p.nombre || p.name} no tiene stock disponible`, 'Sin Stock');
       return;
     }
 
     const found = this.cart().find(c => c.id === p.id);
     
+    // Usar precioFinal que viene del backend (ya calculado con descuentos)
+    const precioFinal = p.precioFinal || p.precioVenta || p.price || 0;
+    const precioOriginal = p.precioVenta || p.price || 0;
+    
     if (found) {
       if (found.qty >= stock) {
-        alert(`No hay más stock disponible de ${p.nombre || p.name}. Stock actual: ${stock}`);
+        this.modal.warning(`No hay más stock disponible de ${p.nombre || p.name}. Stock actual: ${stock}`, 'Stock Insuficiente');
         return;
       }
       found.qty = (found.qty || 1) + 1;
@@ -103,7 +120,12 @@ export class PosComponent {
       this.cart.set([...this.cart(), { 
         ...p, 
         qty: 1,
-        precioUnitario: p.precioVenta || p.price || 0
+        precioUnitario: precioFinal,
+        precioOriginal: precioOriginal,
+        precioFinal: precioFinal,
+        tieneDescuento: p.tieneDescuento || false,
+        descuentoPorcentaje: p.descuentoPorcentaje || 0,
+        ahorro: p.ahorro || 0
       }]);
     }
   }
@@ -128,7 +150,7 @@ export class PosComponent {
     }
 
     if (newQty > stock) {
-      alert(`Solo hay ${stock} unidades disponibles`);
+      this.modal.warning(`Solo hay ${stock} unidades disponibles`, 'Stock Insuficiente');
       item.qty = stock;
       return;
     }
@@ -137,7 +159,18 @@ export class PosComponent {
     this.cart.set([...this.cart()]);
   }
 
-  total = computed(() => this.cart().reduce((s, t) => s + ((t.precioUnitario || t.precioVenta || t.price || 0) * (t.qty || 1)), 0));
+  total = computed(() => {
+    const cartItems = this.cart();
+    console.log('[POS DEBUG] Cart items:', cartItems);
+    const totalCalculated = cartItems.reduce((s, t) => {
+      const precio = t.precioUnitario || t.precioVenta || t.price || 0;
+      const cantidad = t.qty || 1;
+      console.log('[POS DEBUG] Item:', t.nombre || t.name, 'Precio:', precio, 'Qty:', cantidad);
+      return s + (precio * cantidad);
+    }, 0);
+    console.log('[POS DEBUG] Total calculated:', totalCalculated);
+    return totalCalculated;
+  });
 
   get cambio() {
     const total = this.total();
@@ -151,19 +184,19 @@ export class PosComponent {
     return faltante > 0 ? faltante : 0;
   }
 
-  createSale(){
+  async createSale(){
     if (!this.cajaState.abierta || !this.cajaState.caja || !this.cajaState.caja.id) {
-      alert('Debes abrir una caja antes de realizar ventas');
+      this.modal.warning('Debes abrir una caja antes de realizar ventas', 'Caja Cerrada');
       return;
     }
 
     if (this.cart().length === 0) {
-      alert('El carrito está vacío');
+      this.modal.warning('El carrito está vacío', 'Carrito Vacío');
       return;
     }
 
     if (this.paymentMethod === 'efectivo' && this.montoRecibido < this.total()) {
-      alert(`Falta recibir $${this.faltante.toFixed(2)}`);
+      this.modal.warning(`Falta recibir $${this.faltante.toFixed(2)}`, 'Pago Insuficiente');
       return;
     }
 
@@ -187,9 +220,12 @@ export class PosComponent {
     this.loading = true;
     
     this.ventasService.create(payload).subscribe({ 
-      next: (res) => {
+      next: async (res) => {
         this.loading = false;
-        alert(`Venta registrada con éxito\n\nTotal: $${this.total().toFixed(2)}\nRecibido: $${this.montoRecibido.toFixed(2)}\nCambio: $${this.cambio.toFixed(2)}`);
+        await this.modal.success(
+          `Total: $${this.total().toFixed(2)}\nRecibido: $${this.montoRecibido.toFixed(2)}\nCambio: $${this.cambio.toFixed(2)}`,
+          '¡Venta Registrada!'
+        );
         this.cart.set([]);
         this.montoRecibido = 0;
         this.searchTerm = '';
@@ -201,13 +237,12 @@ export class PosComponent {
       error: (e) => { 
         this.loading = false; 
         console.error(e); 
-        alert('Error registrando la venta: ' + (e.error?.message || 'Error desconocido')); 
-      } 
+        this.modal.error('Error registrando la venta: ' + (e.error?.message || 'Error desconocido'));
+      }
     });
-  }
-
-  clearCart() {
-    if (confirm('¿Estás seguro de vaciar el carrito?')) {
+  }  async clearCart() {
+    const confirmed = await this.modal.confirm('¿Estás seguro de vaciar el carrito?', 'Vaciar Carrito');
+    if (confirmed) {
       this.cart.set([]);
       this.montoRecibido = 0;
     }

@@ -115,4 +115,22 @@ export class ProductsService {
       : undefined;
     return this.http.put(`${this.base}/${productoId}/descuento`, dto, { headers });
   }
+
+  /**
+   * Reabastecer producto: actualizar precios y agregar stock
+   * Permite cambiar precioCompra, precioVenta, agregar cantidad, merma y stockMinimo
+   */
+  reabastecer(productoId: number, dto: {
+    precioCompra?: number;
+    precioVenta?: number;
+    cantidadComprada: number;
+    merma?: number;
+    stockMinimo?: number;
+  }): Observable<any> {
+    const negocioId = this.auth.getBusinessId();
+    const headers = this.biz.shouldSendDebugHeader() && negocioId
+      ? new HttpHeaders({ 'X-Debug-Negocio': String(negocioId) })
+      : undefined;
+    return this.http.post(`${this.base}/${productoId}/reabastecer`, dto, { headers });
+  }
 }

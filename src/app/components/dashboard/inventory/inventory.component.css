@@ -466,6 +466,15 @@
   color: #fff;
 }
 
+.action-icon.restock {
+  color: #10b981;
+}
+
+.action-icon.restock:hover {
+  background: #10b981;
+  color: #fff;
+}
+
 /* TOGGLE ACTIVE BUTTON - MÁS SUTIL */
 .toggle-active-btn {
   position: absolute;
@@ -865,6 +874,14 @@
    RESPONSIVE
    ========================================== */
 
+/* Safe-area support on mobile to prevent hidden buttons under system UI */
+@supports (padding: max(0px)) {
+  .inventory-root,
+  .inventory-main {
+    padding-bottom: max(72px, env(safe-area-inset-bottom));
+  }
+}
+
 /* Tablet - 2 columnas */
 @media (max-width: 900px) {
   .inventory-main {
@@ -940,7 +957,7 @@
   
   .modal-content {
     border-radius: 16px 16px 0 0;
-    max-height: 95vh;
+    max-height: calc(95vh - env(safe-area-inset-bottom));
   }
 }
 

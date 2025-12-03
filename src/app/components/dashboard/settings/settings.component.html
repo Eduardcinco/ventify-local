@@ -7,9 +7,6 @@
   <!-- TABS NAVEGACIÓN -->
   <div class="tabs-nav">
     <!-- Tabs disponibles para TODOS -->
-    <button class="tab-btn" [class.active]="activeTab === 'branding'" (click)="setTab('branding')">
-      🎨 Apariencia
-    </button>
     <button class="tab-btn" [class.active]="activeTab === 'cuenta'" (click)="setTab('cuenta')">
       👤 Mi Perfil
     </button>
@@ -23,61 +20,7 @@
     </button>
   </div>
 
-  <!-- TAB 1: PERSONALIZACIÓN VISUAL -->
-  <div class="tab-content" *ngIf="activeTab === 'branding'">
-    <div class="settings-card">
-      <h2>🎨 Personalización Visual</h2>
-      <p class="subtitle">Adapta la apariencia del sistema a tu marca</p>
-
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="colorPrimario">Color Primario</label>
-          <div class="color-input-group">
-            <input type="color" id="colorPrimario" [(ngModel)]="branding.colorPrimario">
-            <input type="text" [(ngModel)]="branding.colorPrimario" placeholder="#1976d2">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="colorSecundario">Color Secundario</label>
-          <div class="color-input-group">
-            <input type="color" id="colorSecundario" [(ngModel)]="branding.colorSecundario">
-            <input type="text" [(ngModel)]="branding.colorSecundario" placeholder="#1565c0">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="colorFondo">Color de Fondo</label>
-          <div class="color-input-group">
-            <input type="color" id="colorFondo" [(ngModel)]="branding.colorFondo">
-            <input type="text" [(ngModel)]="branding.colorFondo" placeholder="#f5f5f5">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="colorAcento">Color de Acento</label>
-          <div class="color-input-group">
-            <input type="color" id="colorAcento" [(ngModel)]="branding.colorAcento">
-            <input type="text" [(ngModel)]="branding.colorAcento" placeholder="#ff9800">
-          </div>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="toggle-label">
-          <input type="checkbox" [(ngModel)]="branding.modoOscuro" (change)="applyBranding()">
-          <span>🌙 Activar Modo Oscuro</span>
-        </label>
-      </div>
-
-      <div class="actions-row">
-        <button class="btn primary" (click)="saveBranding()">💾 Guardar Tema</button>
-        <button class="btn secondary" (click)="resetBranding()">🔄 Restablecer</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 2: DATOS DEL NEGOCIO - Solo Dueño/Gerente -->
+  <!-- TAB 1: DATOS DEL NEGOCIO - Solo Dueño/Gerente -->
   <div class="tab-content" *ngIf="activeTab === 'negocio' && permisos.editarConfiguracion">
     <div class="settings-card">
       <h2>🏢 Datos del Negocio</h2>
@@ -245,11 +188,10 @@
           <div class="form-group">
             <label for="empPuesto">Puesto</label>
             <select id="empPuesto" [(ngModel)]="employee.Puesto">
-              <option value="Empleado">Empleado General</option>
+              <option value="Gerente de negocio">Gerente de negocio</option>
               <option value="Cajero">Cajero</option>
               <option value="Vendedor">Vendedor</option>
               <option value="Almacenista">Almacenista</option>
-              <option value="Supervisor">Supervisor</option>
             </select>
           </div>
 

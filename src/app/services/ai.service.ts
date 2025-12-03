@@ -34,6 +34,21 @@ export interface AiPostResponse {
   copies: string;
 }
 
+export interface AiMetricsResponse {
+  ventasHoy: number;
+  totalIngresos: number;
+  ticketPromedio: number;
+  metodoPago: {
+    efectivo: number;
+    tarjeta: number;
+    transferencia: number;
+  };
+  modoCajaAbierta: boolean;
+  inicioReal?: string;
+  finReal?: string;
+  mensaje?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -74,5 +89,13 @@ export class AiService {
       productoId,
       plataforma
     });
+  }
+
+  /**
+   * 📊 Obtiene métricas del día actual o caja abierta
+   * @returns Observable con KPIs en tiempo real del negocio del usuario
+   */
+  getMetricsToday(): Observable<AiMetricsResponse> {
+    return this.http.get<AiMetricsResponse>(`${this.apiUrl}/metrics/today`);
   }
 }

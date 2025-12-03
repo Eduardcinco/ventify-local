@@ -7,6 +7,7 @@ import { SettingsService } from '../../../services/settings.service';
 import { ToastService } from '../../../services/toast.service';
 import { PermissionsService, PermisosPorRol, ModuloExtra } from '../../../services/permissions.service';
 import { Router } from '@angular/router';
+import { ModalService } from '../../../services/modal.service';
 
 @Component({
   selector: 'app-settings',
@@ -17,7 +18,7 @@ import { Router } from '@angular/router';
 })
 export class SettingsComponent {
   // Tabs activas
-  activeTab: 'branding' | 'negocio' | 'cuenta' | 'empleados' = 'branding';
+  activeTab: 'negocio' | 'cuenta' | 'empleados' = 'cuenta';
   
   // 🔐 Permisos
   permisos!: PermisosPorRol;
@@ -30,6 +31,99 @@ export class SettingsComponent {
     colorAcento: '#ff9800',
     modoOscuro: false
   };
+
+  // Paletas temáticas predefinidas (6 total: 3 masculinas, 3 femeninas)
+  paletasTematicas = [
+    {
+      id: 'azul-clasico',
+      nombre: 'Azul Clásico',
+      tipo: 'masculina',
+      preview: 'assets/themes/azul-clasico.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#1976d2',
+        secundario: '#1565c0',
+        fondo: '#f5f7fa',
+        acento: '#ff9800'
+      }
+    },
+    {
+      id: 'verde-oscuro',
+      nombre: 'Verde Profesional',
+      tipo: 'masculina',
+      preview: 'assets/themes/verde-oscuro.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#2d7a3e',
+        secundario: '#1e5a2e',
+        fondo: '#f1f8f4',
+        acento: '#f59e0b'
+      }
+    },
+    {
+      id: 'morado-tech',
+      nombre: 'Morado Tech',
+      tipo: 'masculina',
+      preview: 'assets/themes/morado-tech.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#667eea',
+        secundario: '#764ba2',
+        fondo: '#f7f7fc',
+        acento: '#f687b3'
+      }
+    },
+    {
+      id: 'rosa-coral',
+      nombre: 'Rosa Coral',
+      tipo: 'femenina',
+      preview: 'assets/themes/rosa-coral.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#f687b3',
+        secundario: '#ed64a6',
+        fondo: '#fef5f8',
+        acento: '#ed8936'
+      }
+    },
+    {
+      id: 'lavanda-suave',
+      nombre: 'Lavanda Suave',
+      tipo: 'femenina',
+      preview: 'assets/themes/lavanda-suave.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#9f7aea',
+        secundario: '#805ad5',
+        fondo: '#faf5ff',
+        acento: '#ed8936'
+      }
+    },
+    {
+      id: 'menta-fresh',
+      nombre: 'Menta Fresh',
+      tipo: 'femenina',
+      preview: 'assets/themes/menta-fresh.png',
+      previewLoaded: true,
+      colores: {
+        primario: '#48bb78',
+        secundario: '#38a169',
+        fondo: '#f0fff4',
+        acento: '#f56565'
+      }
+    }
+  ];
+
+  paletaSeleccionada = 'azul-clasico';
+  filtroTipo: 'todas' | 'masculina' | 'femenina' = 'todas';
+
+  // Computed: Paletas filtradas por tipo
+  paletasFiltradas() {
+    if (this.filtroTipo === 'todas') {
+      return this.paletasTematicas;
+    }
+    return this.paletasTematicas.filter(p => p.tipo === this.filtroTipo);
+  }
 
   // === 2. DATOS DEL NEGOCIO ===
   negocio = {
@@ -61,7 +155,7 @@ export class SettingsComponent {
     SueldoDiario: null as number | null,
     FechaIngreso: '',
     NumeroSeguroSocial: '',
-    Puesto: 'Empleado'
+    Puesto: 'Gerente de negocio'
   };
   creating = false;
   createdCreds: { correo?: string; password?: string } | null = null;
@@ -69,6 +163,9 @@ export class SettingsComponent {
   empleados: Empleado[] = [];
   editingId: number | null = null;
   fotoPerfilUrl: string | null = null;
+  cropSrc: string | null = null;
+  cropBlob: Blob | null = null;
+  showCropper = false;
   showPasswordMap: { [empId: number]: boolean } = {};
   editPasswordMap: { [empId: number]: string } = {}; // Nueva contraseña temporal
   
@@ -110,7 +207,8 @@ export class SettingsComponent {
     private settingsService: SettingsService,
     private router: Router,
     private toast: ToastService,
-    public permissionsService: PermissionsService
+    public permissionsService: PermissionsService,
+    private modal: ModalService
   ) {
     this.permisos = this.permissionsService.getPermisos();
   }
@@ -132,20 +230,82 @@ export class SettingsComponent {
   isDueno(): boolean { return this.permissionsService.isDueno(); }
 
   loadProfilePhoto() {
-    // TODO: endpoint GET /api/usuarios/perfil para obtener fotoPerfilUrl
-    // Por ahora solo cargamos si ya se subió en esta sesión
+    // Fallback a la sesión actual; AuthService no tiene getProfile
+    const session = (this.auth as any).getCurrentSession?.() || (this.auth as any).currentSessionValue?.();
+    const url = (session as any)?.fotoPerfilUrl || (session as any)?.usuario?.fotoPerfilUrl || null;
+    this.fotoPerfilUrl = url ? ((url as string).startsWith('http') ? (url as string) : `http://localhost:5129${url}`) : null;
   }
 
-  deleteProfilePhoto() {
-    if (!confirm('¿Eliminar foto de perfil y volver al avatar por defecto?')) return;
-    // TODO: endpoint DELETE /api/usuarios/foto-perfil
-    this.fotoPerfilUrl = null;
-    localStorage.removeItem('usuario-foto-perfil');
-    this.toast.success('Foto de perfil eliminada');
+  async deleteProfilePhoto() {
+    const confirmed = await this.modal.confirm('¿Eliminar foto de perfil y volver al avatar por defecto?', 'Eliminar Foto');
+    if (!confirmed) return;
+    (this.settingsService as any).deleteFotoPerfil?.().subscribe({
+      next: () => {
+        this.fotoPerfilUrl = null;
+        this.toast.success('Foto de perfil eliminada');
+        this.refreshSessionLater();
+      },
+      error: (e: any) => {
+        console.error(e);
+        this.toast.error('No se pudo eliminar la foto de perfil');
+      }
+    });
+  }
+
+  onFileSelected(evt: Event) {
+    const input = evt.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.cuenta.fotoPerfil = file;
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.cropSrc = reader.result as string;
+      this.showCropper = true;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Simulación de cropper: en producción, integrar cropperjs. Aquí asumimos cropBlob listo.
+  confirmarRecorte(blob: Blob) {
+    this.cropBlob = blob;
+    this.subirFotoPerfil();
+  }
+
+  cancelarRecorte() {
+    this.showCropper = false;
+    this.cropSrc = null;
+    this.cropBlob = null;
+  }
+
+  subirFotoPerfil() {
+    const fileToSend = this.cropBlob ? new File([this.cropBlob], 'avatar.png', { type: 'image/png' }) : this.cuenta.fotoPerfil;
+    if (!fileToSend) {
+      this.toast.error('Selecciona una imagen primero');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', fileToSend);
+    (this.settingsService as any).uploadFotoPerfil?.(fd).subscribe({
+      next: (resp: any) => {
+        const url = resp?.fotoUrl;
+        this.fotoPerfilUrl = url ? (url.startsWith('http') ? url : `http://localhost:5129${url}`) : this.fotoPerfilUrl;
+        this.toast.success('Foto actualizada');
+        this.showCropper = false;
+        this.refreshSessionLater();
+      },
+      error: (e: any) => {
+        console.error(e);
+        this.toast.error('No se pudo subir la foto');
+      }
+    });
+  }
+
+  private refreshSessionLater() {
+    setTimeout(() => (this.auth as any).refreshSession?.(), 250);
   }
 
   // === TABS ===
-  setTab(tab: 'branding' | 'negocio' | 'cuenta' | 'empleados') {
+  setTab(tab: 'negocio' | 'cuenta' | 'empleados') {
     this.activeTab = tab;
   }
 
@@ -179,6 +339,34 @@ export class SettingsComponent {
         this.toast.error('Error al guardar el tema');
       }
     });
+  }
+
+  seleccionarPaleta(paletaId: string) {
+    const paleta = this.paletasTematicas.find(p => p.id === paletaId);
+    if (!paleta) return;
+
+    this.paletaSeleccionada = paletaId;
+    this.branding.colorPrimario = paleta.colores.primario;
+    this.branding.colorSecundario = paleta.colores.secundario;
+    this.branding.colorFondo = paleta.colores.fondo;
+    this.branding.colorAcento = paleta.colores.acento;
+
+    // Aplicar inmediatamente para preview
+    this.applyBranding();
+    
+    // Guardar automáticamente en backend
+    this.saveBranding();
+  }
+
+  onImageError(event: any, paleta: any) {
+    // Si la imagen no carga, marcamos que use el fallback
+    paleta.previewLoaded = false;
+    console.log(`No se pudo cargar la imagen para ${paleta.nombre}, usando preview generado`);
+  }
+
+  guardarPaletaSeleccionada() {
+    // Guardar en backend
+    this.saveBranding();
   }
 
   applyBranding() {
@@ -248,17 +436,17 @@ export class SettingsComponent {
   }
 
   // === 3. CUENTA ===
-  changePassword() {
+  async changePassword() {
     if (!this.cuenta.passwordActual || !this.cuenta.passwordNueva) {
-      alert('⚠️ Completa todos los campos');
+      this.modal.warning('Completa todos los campos', 'Campos Incompletos');
       return;
     }
     if (this.cuenta.passwordNueva !== this.cuenta.passwordConfirm) {
-      alert('⚠️ Las contraseñas nuevas no coinciden');
+      this.modal.warning('Las contraseñas nuevas no coinciden', 'Error de Confirmación');
       return;
     }
     if (this.cuenta.passwordNueva.length < 6) {
-      alert('⚠️ La contraseña debe tener al menos 6 caracteres');
+      this.modal.warning('La contraseña debe tener al menos 6 caracteres', 'Contraseña Débil');
       return;
     }
     const dto = {
@@ -279,9 +467,9 @@ export class SettingsComponent {
     });
   }
 
-  changeEmail() {
+  async changeEmail() {
     if (!this.cuenta.nuevoCorreo || !this.cuenta.nuevoCorreo.includes('@')) {
-      alert('⚠️ Correo inválido');
+      this.modal.warning('Correo inválido', 'Email Incorrecto');
       return;
     }
     const dto = { nuevoCorreo: this.cuenta.nuevoCorreo };
@@ -297,44 +485,14 @@ export class SettingsComponent {
     });
   }
 
-  onFileSelected(event: any) {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      alert('⚠️ Solo se permiten archivos JPG o PNG');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      alert('⚠️ El archivo no debe superar 5MB');
-      return;
-    }
-    this.cuenta.fotoPerfil = file;
-    this.settingsService.subirFotoPerfil(file).subscribe({
-      next: (res) => {
-        const relative = res?.fotoUrl || res?.url || res?.path;
-        if (relative) {
-          this.fotoPerfilUrl = relative.startsWith('http') ? relative : `http://localhost:5129${relative}`;
-          if (this.fotoPerfilUrl) {
-            localStorage.setItem('usuario-foto-perfil', this.fotoPerfilUrl);
-          }
-        }
-        this.toast.success('Foto de perfil actualizada');
-      },
-      error: (e) => {
-        console.error(e);
-        this.toast.error(e?.error?.message || 'Error al subir la foto');
-      }
-    });
-  }
+  
 
-  cerrarSesiones() {
-    if (!confirm('¿Cerrar todas las sesiones activas excepto la actual?')) return;
+  async cerrarSesiones() {
+    const confirmed = await this.modal.confirm('¿Cerrar todas las sesiones activas excepto la actual?', 'Cerrar Sesiones');
+    if (!confirmed) return;
     this.settingsService.cerrarSesiones().subscribe({
       next: () => {
-        this.toast.info('Sesiones cerradas. Inicia sesión nuevamente.');
-        this.auth.logout().subscribe(() => {
-          this.router.navigate(['/login']);
-        });
+        this.toast.success('Sesiones cerradas correctamente. Tu sesión actual se mantiene activa.');
       },
       error: (e) => {
         console.error(e);
@@ -359,7 +517,7 @@ export class SettingsComponent {
       SueldoDiario: null,
       FechaIngreso: '',
       NumeroSeguroSocial: '',
-      Puesto: 'Empleado'
+      Puesto: 'Gerente de negocio'
     };
     this.createdCreds = null;
   }
@@ -472,8 +630,9 @@ export class SettingsComponent {
     });
   }
 
-  resetPassword(emp: Empleado) {
-    if (!confirm(`¿Resetear contraseña de ${emp.nombre} ${emp.apellido1}?`)) return;
+  async resetPassword(emp: Empleado) {
+    const confirmed = await this.modal.confirm(`¿Resetear contraseña de ${emp.nombre} ${emp.apellido1}?`, 'Resetear Contraseña');
+    if (!confirmed) return;
     this.empleadosService.resetPassword(emp.id).subscribe({
       next: (res) => {
         const nuevaPassword = res.nuevaPassword || (res as any).password || (res as any).contrasena;

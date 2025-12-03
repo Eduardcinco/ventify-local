@@ -3,7 +3,8 @@
  * Visualización de datos, gráficas y exportación a Excel/PDF
  */
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+import { Router, NavigationEnd } from '@angular/router';
+import { CommonModule, NgIf, NgFor, DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportsService } from '../../../services/reports.service';
 import { PermissionsService, PermisosPorRol } from '../../../services/permissions.service';
@@ -24,7 +25,7 @@ Chart.register(...registerables);
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, DecimalPipe],
+  imports: [CommonModule, NgIf, NgFor, FormsModule, DatePipe, DecimalPipe],
   templateUrl: './reports.component.html',
   styleUrls: ['./reports.component.css']
 })
@@ -65,18 +66,30 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
   constructor(
     private reportsService: ReportsService,
     public permissionsService: PermissionsService,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {
     this.permisos = this.permissionsService.getPermisos();
   }
 
   ngOnInit(): void {
-    // Si es cajero con acceso limitado, cargar solo sus ventas
-    if (this.permisos.reportesSoloHoy && !this.permisos.verReportesGlobales) {
+    // Si solo tiene reportes personales (sin globales), cargar sus ventas
+    if (this.permisos.verReportesPropios && !this.permisos.verReportesGlobales) {
       this.loadMisVentasHoy();
     } else {
       this.cargarReporte();
     }
+
+    // Auto-refresh al entrar a Reportes
+    this.router.events.subscribe(ev => {
+      if (ev instanceof NavigationEnd && ev.urlAfterRedirects.includes('/dashboard/reports')) {
+        if (this.permisos.verReportesPropios && !this.permisos.verReportesGlobales) {
+          this.loadMisVentasHoy();
+        } else {
+          this.cargarReporte();
+        }
+      }
+    });
   }
 
   ngAfterViewInit(): void {
@@ -93,25 +106,37 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
   // ============================================
 
   cargarReporte(): void {
+    console.log('[REPORTS DEBUG] Starting cargarReporte...');
+    console.log('[REPORTS DEBUG] User role:', this.authService.getRole());
+    console.log('[REPORTS DEBUG] Filtro:', this.filtro);
+    console.log('[REPORTS DEBUG] Permisos:', this.permisos);
+    
     if (!this.filtro.fechaInicio || !this.filtro.fechaFin) {
+      console.error('[REPORTS DEBUG] Missing dates!');
       this.error = 'Selecciona las fechas de inicio y fin';
       return;
     }
 
     this.loading = true;
+    console.log('[REPORTS DEBUG] Loading set to true, calling API...');
     this.error = null;
 
     this.reportsService.getReporteVentas(this.filtro).subscribe({
       next: (data) => {
+        console.log('[REPORTS DEBUG] Data received:', data);
         this.reporte = data;
         this.loading = false;
-        // Actualizar gráficas después de que el DOM se actualice
+        
+        // Asegurar que el tab de gráficas esté activo y actualizar después del DOM
+        this.tabActiva = 'resumen';
+        console.log('[REPORTS DEBUG] Tab set to resumen, waiting 150ms for charts...');
         setTimeout(() => {
           this.actualizarGraficas();
-        }, 100);
+        }, 150);
       },
       error: (err) => {
         console.error('Error cargando reporte:', err);
+        console.error('[REPORTS DEBUG] Full error object:', JSON.stringify(err));
         this.error = err.error?.message || 'Error al cargar el reporte. Intenta de nuevo.';
         this.loading = false;
       }
@@ -123,7 +148,17 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
   // ============================================
 
   actualizarGraficas(): void {
-    if (!this.reporte) return;
+    if (!this.reporte) {
+      console.warn('📊 No hay datos de reporte para las gráficas');
+      return;
+    }
+    
+    if (!this.ventasChartRef?.nativeElement || !this.pagosChartRef?.nativeElement) {
+      console.warn('📊 Canvas elements no están disponibles aún');
+      return;
+    }
+    
+    console.log('✅ Creando gráficas...');
     this.crearGraficaVentas();
     this.crearGraficaPagos();
   }
@@ -342,20 +377,26 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
   // ============================================
 
   loadMisVentasHoy(): void {
+    console.log('[REPORTS DEBUG - CAJERO] Loading mis ventas hoy...');
     const userId = this.authService.getUserId();
+    console.log('[REPORTS DEBUG - CAJERO] User ID:', userId);
     if (!userId) {
+      console.error('[REPORTS DEBUG - CAJERO] No user ID found!');
       this.loading = false;
       return;
     }
 
     this.loading = true;
+    console.log('[REPORTS DEBUG - CAJERO] Calling getMisVentasHoy API...');
     this.reportsService.getMisVentasHoy(userId).subscribe({
       next: (data) => {
+        console.log('[REPORTS DEBUG - CAJERO] Data received:', data);
         this.misVentasHoy = data;
         this.loading = false;
       },
       error: (error) => {
         console.error('Error cargando mis ventas de hoy:', error);
+        console.error('[REPORTS DEBUG - CAJERO] Full error:', JSON.stringify(error));
         this.loading = false;
       }
     });
@@ -375,6 +416,13 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   cambiarTab(tab: 'resumen' | 'periodos' | 'productos'): void {
     this.tabActiva = tab;
+    
+    // Si cambiamos al tab de gráficas y hay datos, recrear las gráficas
+    if (tab === 'resumen' && this.reporte) {
+      setTimeout(() => {
+        this.actualizarGraficas();
+      }, 100);
+    }
   }
 
   private getToday(): string {
@@ -387,6 +435,13 @@ export class ReportsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Helpers para el template
+  toLocal(iso?: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString('es-MX');
+  }
+
   getVariacionPorcentaje(actual: number, anterior: number): string {
     if (anterior === 0) return actual > 0 ? '+100%' : '0%';
     const variacion = ((actual - anterior) / anterior) * 100;

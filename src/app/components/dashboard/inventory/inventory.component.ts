@@ -1,12 +1,13 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, NavigationEnd } from '@angular/router';
 import { ProductsService } from '../../../services/products.service';
 import { CategoriesService } from '../../../services/categories.service';
 import { CajaService } from '../../../services/caja.service';
 import { AlertasService } from '../../../services/alertas.service';
 import { AuthService } from '../../../services/auth.service';
 import { PermissionsService, PermisosPorRol } from '../../../services/permissions.service';
-import { CommonModule } from '@angular/common';
+import { ModalService } from '../../../services/modal.service';
+import { CommonModule, NgIf, NgFor } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,7 +15,7 @@ import { MatButtonModule } from '@angular/material/button';
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, NgIf, NgFor, FormsModule, ReactiveFormsModule, MatIconModule, MatButtonModule],
   templateUrl: './inventory.component.html',
   styleUrls: ['./inventory.component.css']
 })
@@ -71,6 +72,11 @@ export class InventoryComponent {
   descuentoTarget: any = null;
   descuentoForm!: FormGroup;
 
+  // Reabastecer modal state
+  showReabastecer = false;
+  reabastecerTarget: any = null;
+  reabastecerForm!: FormGroup;
+
   constructor(
     private cdr: ChangeDetectorRef, 
     private router: Router, 
@@ -80,7 +86,8 @@ export class InventoryComponent {
     private alertasService: AlertasService,
     private authService: AuthService,
     private fb: FormBuilder,
-    public permissionsService: PermissionsService
+    public permissionsService: PermissionsService,
+    private modal: ModalService
   ) {
     // Cargar permisos
     this.permisos = this.permissionsService.getPermisos();
@@ -100,6 +107,23 @@ export class InventoryComponent {
       fechaFin: [null],
       horaInicio: [null],
       horaFin: [null]
+    });
+
+    // Inicializar formulario de reabastecer
+    this.reabastecerForm = this.fb.group({
+      precioCompra: [0],
+      precioVenta: [0],
+      cantidadComprada: [0],
+      merma: [0],
+      stockMinimo: [5]
+    });
+
+    // Auto-refresh al entrar a Inventario
+    this.router.events.subscribe(ev => {
+      if (ev instanceof NavigationEnd && ev.urlAfterRedirects.includes('/dashboard/inventory')) {
+        this.loadProducts();
+        this.loadCategories();
+      }
     });
   }
 
@@ -561,5 +585,85 @@ export class InventoryComponent {
         alert(err?.error?.message || 'Error al remover descuento');
       }
     });
+  }
+
+  // Reabastecer handlers
+  abrirModalReabastecer(producto: any) {
+    this.reabastecerTarget = producto;
+    // Pre-llenar con valores actuales del producto
+    this.reabastecerForm.patchValue({
+      precioCompra: producto.precioCompra || 0,
+      precioVenta: producto.precioVenta || producto.price || 0,
+      cantidadComprada: 0,
+      merma: 0,
+      stockMinimo: producto.stockMinimo || 5
+    });
+    this.showReabastecer = true;
+  }
+
+  cerrarModalReabastecer() {
+    this.showReabastecer = false;
+    this.reabastecerTarget = null;
+    this.reabastecerForm.reset();
+  }
+
+  confirmarReabastecer() {
+    if (!this.reabastecerTarget) return;
+    const val = this.reabastecerForm.value;
+
+    // Validaciones
+    if (!val.cantidadComprada || val.cantidadComprada <= 0) {
+      alert('Debes ingresar una cantidad mayor a 0 para reabastecer');
+      return;
+    }
+
+    if (val.precioCompra <= 0 || val.precioVenta <= 0) {
+      alert('Los precios deben ser mayores a 0');
+      return;
+    }
+
+    if (val.merma < 0 || val.merma > val.cantidadComprada) {
+      alert('La merma no puede ser negativa ni mayor a la cantidad comprada');
+      return;
+    }
+
+    const dto = {
+      precioCompra: Number(val.precioCompra),
+      precioVenta: Number(val.precioVenta),
+      cantidadComprada: Number(val.cantidadComprada),
+      merma: Number(val.merma),
+      stockMinimo: Number(val.stockMinimo)
+    };
+
+    this.productsService.reabastecer(this.reabastecerTarget.id, dto).subscribe({
+      next: () => {
+        alert('Producto reabastecido exitosamente');
+        this.cerrarModalReabastecer();
+        this.loadProducts();
+        this.alertasService.refresh();
+      },
+      error: (err) => {
+        console.error(err);
+        alert(err?.error?.message || 'Error al reabastecer el producto');
+      }
+    });
+  }
+
+  get stockNuevo() {
+    if (!this.reabastecerTarget) return 0;
+    const stockActual = this.reabastecerTarget.stock || this.reabastecerTarget.cantidadDisponible || 0;
+    const val = this.reabastecerForm.value;
+    const cantidadNeta = (val.cantidadComprada || 0) - (val.merma || 0);
+    return stockActual + cantidadNeta;
+  }
+
+  get costoReabastecimiento() {
+    const val = this.reabastecerForm.value;
+    return (val.precioCompra || 0) * (val.cantidadComprada || 0);
+  }
+
+  get nuevaGananciaUnitaria() {
+    const val = this.reabastecerForm.value;
+    return (val.precioVenta || 0) - (val.precioCompra || 0);
   }
 }

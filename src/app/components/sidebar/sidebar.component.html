@@ -44,14 +44,10 @@
       <span>Reportes</span>
     </a>
     
-    <!-- ⚙️ Configuración - Dueño, Gerente -->
-    <a *ngIf="permisos.verConfiguracion" routerLink="/dashboard/settings" routerLinkActive="active" (click)="closeOnSmall()">
-      <span class="nav-icon">⚙️</span>
-      <span>Configuración</span>
-    </a>
+    <!-- ⚙️ Configuración eliminada del nav: ahora en botón de perfil -->
   </nav>
   <div class="sidebar-footer">
-      <div class="user-info">
+      <div class="user-info" role="button" (click)="openProfile()" title="Perfil y configuración">
         <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Perfil" class="user-avatar-img">
         <div *ngIf="!fotoPerfilUrl" class="user-avatar-default">{{ getUserInitialsInternal() }}</div>
       <div class="user-details">

@@ -17,6 +17,10 @@ export interface ReporteVentasCompleto {
   tipoReporte: string;
   fechaInicio: string;
   fechaFin: string;
+  // Ventana aplicada por backend (modo caja abierta)
+  ModoCajaAbierta?: boolean;
+  InicioReal?: string; // ISO
+  FinReal?: string;    // ISO
   resumenGeneral: ReporteVentasAgregado;
   datosPorPeriodo: ReporteVentasAgregado[];
   topProductos: ProductoMasVendido[];

@@ -56,31 +56,11 @@
         <span class="action-icon">📊</span>
         <span class="action-text">Reportes</span>
       </a>
-      
       <!-- Configuración - Dueño, Gerente -->
       <a *ngIf="permisos.verConfiguracion" routerLink="/dashboard/settings" class="action-btn">
         <span class="action-icon">⚙️</span>
         <span class="action-text">Configuración</span>
       </a>
     </div>
-  </div>
-
-  <!-- Recent Sales Section -->
-  <div class="section" *ngIf="recentSales.length > 0">
-    <h2>Últimas Ventas</h2>
-    <div class="sales-list">
-      <div class="sale-item" *ngFor="let sale of recentSales">
-        <div class="sale-info">
-          <div class="sale-id">Venta #{{ sale.id }}</div>
-          <div class="sale-date">{{ sale.date }} · {{ sale.items }} producto(s)</div>
-        </div>
-        <div class="sale-amount">${{ sale.amount }}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Empty State -->
-  <div class="empty-state" *ngIf="recentSales.length === 0">
-    <p>Aún no has realizado ventas. ¡Comienza con tu primera venta!</p>
   </div>
 </div>

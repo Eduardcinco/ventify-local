@@ -71,7 +71,19 @@ export class SettingsService {
     return this.http.post(`${this.apiUrl}/usuarios/foto-perfil`, formData);
   }
 
+  // Variantes para compatibilidad con nuevo flujo
+  uploadFotoPerfil(formData: FormData): Observable<{ fotoUrl: string }> {
+    return this.http.post<{ fotoUrl: string }>(`${this.apiUrl}/usuarios/foto-perfil`, formData);
+  }
+
+  deleteFotoPerfil(): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/usuarios/foto-perfil`);
+  }
+
   cerrarSesiones(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/usuarios/cerrar-sesiones`, {});
+    // El refresh token se envía automáticamente en la cookie httpOnly
+    return this.http.post(`${this.apiUrl}/usuarios/cerrar-sesiones`, {
+      mantenerSesionActual: true
+    });
   }
 }

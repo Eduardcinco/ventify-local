@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ToastComponent } from './components/toast/toast.component';
 import { AiChatFloatComponent } from './components/ai-chat-float/ai-chat-float.component';
 import { AuthService } from './services/auth.service';
+import { SidebarService } from './services/sidebar.service';
 
 @Component({
   selector: 'app-root',
@@ -15,7 +16,7 @@ export class App {
   protected readonly title = signal('FRONT');
   showAiChat = signal(false);
 
-  constructor(private auth: AuthService) {
+  constructor(private auth: AuthService, private sidebarService: SidebarService) {
     // Evaluar si debe mostrarse el chat según autenticación y rol permitido
     const evalShow = () => {
       const isAuth = this.auth.isAuthenticated();
@@ -26,5 +27,9 @@ export class App {
 
     evalShow();
     this.auth.currentSession$.subscribe(() => evalShow());
+  }
+
+  toggleSidebar() {
+    this.sidebarService.toggle();
   }
 }

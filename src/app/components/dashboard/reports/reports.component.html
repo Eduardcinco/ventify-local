@@ -1,6 +1,6 @@
 <div class="reports-container">
   <!-- 🧾 VISTA CAJERO: Solo sus ventas del día -->
-  <div *ngIf="permisos.reportesSoloHoy && !permisos.verReportesGlobales" class="cajero-reports">
+  <div *ngIf="permisos.verReportesPropios && !permisos.verReportesGlobales" class="cajero-reports">
     <div class="page-header">
       <h1>📊 Mis Ventas de Hoy</h1>
     </div>
@@ -57,6 +57,20 @@
         <p class="header-subtitle" *ngIf="reporte">
           {{ reporte.nombreNegocio }} · Generado: {{ reporte.fechaGeneracion | date:'medium' }}
         </p>
+        <!-- Banner de caja abierta -->
+        <div *ngIf="reporte && reporte.ModoCajaAbierta" class="banner-caja-abierta">
+          <strong>🟢 Caja abierta:</strong> ventas desde última apertura hasta ahora.
+          <div class="banner-range" *ngIf="reporte && reporte.InicioReal && reporte.FinReal">
+            {{ toLocal(reporte!.InicioReal) }} → {{ toLocal(reporte!.FinReal) }}
+          </div>
+        </div>
+        <!-- Banner de rango por día cuando no hay caja abierta -->
+        <div *ngIf="reporte && !reporte.ModoCajaAbierta" class="banner-rango-dia">
+          <strong>📅 Rango por día:</strong>
+          <div class="banner-range">
+            {{ filtro.fechaInicio }} → {{ filtro.fechaFin }}
+          </div>
+        </div>
       </div>
       <div class="header-actions">
         <button class="btn btn-excel" (click)="exportarExcel()" [disabled]="exportando || !reporte">
@@ -72,6 +86,14 @@
 
     <!-- Filtros -->
     <div class="filters-card">
+      <div class="filters-header">
+        <h3>Filtros</h3>
+        <span 
+          *ngIf="reporte && reporte.ModoCajaAbierta" 
+          class="badge badge-live" 
+          title="Los filtros de fecha están deshabilitados porque hay una caja abierta. El reporte muestra ventas desde la última apertura hasta ahora en tiempo real."
+        >🟢 MODO EN VIVO</span>
+      </div>
       <div class="filters-grid">
         <!-- Fecha Inicio -->
         <div class="filter-group">
@@ -81,6 +103,7 @@
             id="fechaInicio"
             [(ngModel)]="filtro.fechaInicio"
             class="filter-input"
+            [disabled]="!!reporte && !!reporte.ModoCajaAbierta"
           />
         </div>
 
@@ -92,6 +115,7 @@
             id="fechaFin"
             [(ngModel)]="filtro.fechaFin"
             class="filter-input"
+            [disabled]="!!reporte && !!reporte.ModoCajaAbierta"
           />
         </div>
 
@@ -102,6 +126,7 @@
             id="tipoAgrupacion"
             [(ngModel)]="filtro.tipoAgrupacion"
             class="filter-input"
+            [disabled]="!!reporte && !!reporte.ModoCajaAbierta"
           >
             <option *ngFor="let tipo of tiposAgrupacion" [value]="tipo.value">
               {{ tipo.icon }} {{ tipo.label }}

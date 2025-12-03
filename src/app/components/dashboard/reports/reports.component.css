@@ -13,6 +13,13 @@
   min-height: calc(100vh - 80px);
 }
 
+/* Safe-area support to prevent bottom actions from being hidden */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .reports-container {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* ============================================
    PAGE HEADER
    ============================================ */
@@ -42,6 +49,13 @@
 .header-actions {
   display: flex;
   gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* ============================================
@@ -118,6 +132,33 @@
   margin-bottom: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
+}
+
+.filters-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.filters-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-live {
+  background: #e7f7ec;
+  color: #0f7b3e;
+  border: 1px solid #b9e5c8;
 }
 
 .filters-grid {

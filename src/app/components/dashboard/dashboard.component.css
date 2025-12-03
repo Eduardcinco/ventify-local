@@ -9,8 +9,9 @@
   z-index: 99;
 }
 
-@media (max-width: 900px) {
-  .sidebar-backdrop {
+/* Mostrar backdrop solo cuando esté visible y en tablet (sidebar superpuesta) */
+@media (max-width: 900px) and (min-width: 769px) {
+  .sidebar-backdrop.visible {
     display: block;
   }
 }
@@ -185,7 +186,7 @@
 }
 
 .main-area {
-  margin-left: 200px;
+  margin-left: 240px;
   flex: 1;
   overflow-y: auto;
   transition: margin-left 0.25s ease;
@@ -210,6 +211,13 @@
   position: sticky;
   top: 0;
   z-index: 50;
+}
+
+/* Prevent iOS/Android safe-area overlap */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+  }
 }
 
 .hamburger {
@@ -423,7 +431,7 @@
 
   .main-area {
     margin-left: 0;
-    margin-bottom: 80px;
+    margin-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 }
 
@@ -447,6 +455,6 @@
   }
 
   .main-area {
-    margin-bottom: 70px;
+    margin-bottom: calc(70px + env(safe-area-inset-bottom));
   }
 }

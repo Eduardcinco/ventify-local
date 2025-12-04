@@ -273,10 +273,10 @@
       </div>
 
       <!-- Grid de Cards -->
-      <div class="empleados-grid" *ngIf="empleados && empleados.length > 0">
+      <div class="empleados-grid" *ngIf="empleadosFiltrados && empleadosFiltrados.length > 0">
         <div 
           class="empleado-card" 
-          *ngFor="let emp of empleados"
+          *ngFor="let emp of empleadosFiltrados"
           (click)="abrirModalEmpleado(emp)">
           
           <!-- Avatar -->
@@ -308,7 +308,7 @@
       </div>
 
       <!-- Estado vacío -->
-      <div class="empty-state-card" *ngIf="!empleados || empleados.length === 0">
+      <div class="empty-state-card" *ngIf="!empleadosFiltrados || empleadosFiltrados.length === 0">
         <div class="empty-icon">👥</div>
         <h3>No hay empleados registrados</h3>
         <p>Crea tu primer empleado usando el botón "Agregar Nuevo Empleado" de arriba</p>
@@ -388,7 +388,7 @@
 
       <!-- Botones de acción -->
       <div class="acciones-empleado">
-        <button class="btn-accion rol" (click)="cerrarModalEmpleado(); abrirModalPermisos(empleadoSeleccionado!)">
+        <button class="btn-accion rol" *ngIf="puedeEditarRol" (click)="cerrarModalEmpleado(); abrirModalPermisos(empleadoSeleccionado!)">
           <span class="btn-icon-grande">🛡️</span>
           <span class="btn-texto">Cambiar Rol</span>
         </button>

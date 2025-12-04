@@ -17,6 +17,24 @@ import { ModalService } from '../../../services/modal.service';
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent {
+    // ...existing code...
+    // Control para mostrar botón de cambio de rol
+    get puedeEditarRol(): boolean {
+      // currentUser: usuario autenticado
+      // empleadoSeleccionado: usuario que se está editando
+      const currentUser = this.auth.getCurrentSession?.();
+      const empleado = this.empleadoSeleccionado;
+      return currentUser?.rol === 'dueño' && empleado?.rol !== 'dueño';
+    }
+
+    // Filtrar empleados para que un gerente/empleado no vea al dueño
+    get empleadosFiltrados(): Empleado[] {
+      const currentUser = this.auth.getCurrentSession?.();
+      if (currentUser?.rol === 'dueño') {
+        return this.empleados;
+      }
+      return this.empleados.filter(e => e.rol !== 'dueño');
+    }
   // Tabs activas
   activeTab: 'negocio' | 'cuenta' | 'empleados' = 'cuenta';
   
@@ -523,8 +541,8 @@ export class SettingsComponent {
   }
 
   createEmployee() {
-    if (!this.isDueno()) {
-      this.toast.error('Solo el dueño puede crear empleados');
+    if (!this.permisos.crearUsuarios) {
+      this.toast.error('Solo el dueño o gerente puede crear empleados');
       return;
     }
     // Validaciones
@@ -542,6 +560,14 @@ export class SettingsComponent {
     }
 
     this.creating = true;
+    // Determinar el rol según el puesto seleccionado
+    let rol = 'cajero';
+    const puesto = (this.employee.Puesto || '').toLowerCase();
+    if (puesto.includes('gerente')) rol = 'gerente';
+    else if (puesto.includes('almacenista')) rol = 'almacenista';
+    else if (puesto.includes('dueño')) rol = 'dueño';
+    // Si no coincide, queda como cajero
+
     const payload = {
       Nombre: this.employee.Nombre.trim(),
       Apellido1: this.employee.Apellido1.trim(),
@@ -551,7 +577,8 @@ export class SettingsComponent {
       SueldoDiario: this.employee.SueldoDiario ?? null,
       FechaIngreso: this.employee.FechaIngreso || null,
       NumeroSeguroSocial: this.employee.NumeroSeguroSocial?.trim() || null,
-      Puesto: this.employee.Puesto
+      Puesto: this.employee.Puesto,
+      rol
     };
 
     // Usar servicio de empleados con fallback de ruta

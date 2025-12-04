@@ -1,0 +1,46 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.exe
+*.log
+[Dd]ebug/
+[Rr]elease/
+.vs/
+.vscode/
+*.DotSettings.user
+
+# Secrets y configuración sensible
+appsettings.Development.json
+*.bak
+*.temp
+token.txt
+test-*.ps1
+*.http
+
+# Logs
+logs/
+*.log
+
+# Node modules (si hay frontend en /FRONT)
+**/node_modules/
+**/dist/
+**/.angular/
+
+# SQL temporal
+fix_*.sql
+database_updates.sql
+
+# Carpetas de prueba
+AA ESTA ES LA CARPETA UWU MOVER YA/
+
+# Otros repositorios
+Back-Zona-30/
+
+# OS
+.DS_Store
+Thumbs.db

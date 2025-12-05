@@ -1,0 +1,31 @@
+name: deploy-az
+
+on:
+  push:
+    branches:
+      - Ventify-nube
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish
+        working-directory: ventifyapi
+        run: dotnet publish Ventifyapi/Ventifyapi.csproj -c Release -o ./output
+
+      - name: Deploy to Azure
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: backend-ventify-25
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
+
+          

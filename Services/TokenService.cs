@@ -32,7 +32,7 @@ namespace VentifyAPI.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claimList = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -43,15 +43,19 @@ namespace VentifyAPI.Services
                 new Claim(ClaimTypes.Role, user.Rol ?? string.Empty),
                 // Mantener claim "rol" para el frontend si lo usa
                 new Claim("rol", user.Rol ?? string.Empty),
-                new Claim("negocioId", (user.NegocioId ?? 0).ToString()),
                 // Control de sesiones: versión del token
                 new Claim("tokenVersion", (user.TokenVersion).ToString())
             };
 
+            if (user.NegocioId.HasValue)
+            {
+                claimList.Add(new Claim("negocioId", user.NegocioId.Value.ToString()));
+            }
+
             var token = new JwtSecurityToken(
                 issuer: Environment.GetEnvironmentVariable("JWT_ISSUER") ?? _config["JWT_ISSUER"],
                 audience: Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? _config["JWT_AUDIENCE"],
-                claims: claims,
+                claims: claimList,
                 expires: DateTime.UtcNow.AddMinutes(expiresMinutes),
                 signingCredentials: creds
             );

@@ -104,20 +104,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Apply pending migrations automatically at startup (useful for local development)
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        // If migration fails, log to console but continue so error details are visible in logs
-        Console.WriteLine($"Error applying migrations: {ex}");
-    }
-}
+// Migración automática desactivada para evitar errores si las tablas ya existen
 
 // Configure EPPlus license context for NonCommercial usage (EPPlus 8+)
 var epplusEnv = Environment.GetEnvironmentVariable("EPPlusLicenseContext");

@@ -626,8 +626,15 @@ namespace VentifyAPI.Controllers
                 return BadRequest(new { message = "No se puede cambiar el rol del dueño original del negocio." });
             }
 
-            // Solo el dueño puede asignar rol de Gerente
+            // No permitir que un gerente o empleado cambie el rol de un usuario con rol "dueño"
             var requesterRol = requester.Rol?.ToLower();
+            var usuarioRol = usuario.Rol?.ToLower();
+            if (usuarioRol == "dueño" && requesterRol != "dueño")
+            {
+                return Forbid();
+            }
+
+            // Solo el dueño puede asignar rol de Gerente
             if (dto.Rol.ToLower() == "gerente" && requesterRol != "dueño")
             {
                 return Forbid();

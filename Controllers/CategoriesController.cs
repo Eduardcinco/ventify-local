@@ -10,7 +10,7 @@ using VentifyAPI.Models;
 namespace VentifyAPI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/categorias")]
     [Authorize]
     public class CategoriesController : ControllerBase
     {

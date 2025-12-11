@@ -18,6 +18,11 @@
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.0" />
     <PackageReference Include="QuestPDF" Version="2024.10.2" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <!-- Exclude ventify-local BACKEND duplicate sources -->
+    <Compile Remove="ventify-local\\BACKEND\\VentifyAPI\\**\\*.cs" />
+    <Content Remove="ventify-local\\BACKEND\\VentifyAPI\\**\\*" />
+    <None Remove="ventify-local\\BACKEND\\VentifyAPI\\**\\*" />
+    <EmbeddedResource Remove="ventify-local\\BACKEND\\VentifyAPI\\**\\*" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
   </ItemGroup>

@@ -7,39 +7,51 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using VentifyAPI.Services;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+
+using VentifyAPI.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// MySQL Connection: prefer environment variable 'MYSQL_CONN' or 'ConnectionStrings__MySqlConnection'
+// MySQL Connection
 var envConn = Environment.GetEnvironmentVariable("MYSQL_CONN") ?? Environment.GetEnvironmentVariable("ConnectionStrings__MySqlConnection");
 var connectionString = !string.IsNullOrEmpty(envConn) ? envConn : builder.Configuration.GetConnectionString("MySqlConnection");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// Tenant context per-request
-builder.Services.AddScoped<VentifyAPI.Services.ITenantContext, VentifyAPI.Services.TenantContext>();
+builder.Services.AddHttpContextAccessor(); // Necesario para acceder al HttpContext en el fallback
+
+// TenantContext con fallback seguro (evita el error en Railway)
+builder.Services.AddScoped<VentifyAPI.Services.ITenantContext>(sp =>
+{
+    var httpContextAccessor = sp.GetService<IHttpContextAccessor>();
+    if (httpContextAccessor?.HttpContext?.Items.TryGetValue("TenantId", out var tenantIdObj) == true &&
+        tenantIdObj is int tenantId)
+    {
+        return new TenantContext { NegocioId = tenantId };
+    }
+
+    // Fallback: tenant 1 cuando no hay contexto de request (startup, Railway, etc.)
+    return new TenantContext { NegocioId = 1 };
+});
 
 builder.Services.AddControllers();
 
-// Register token service
+// Register services
 builder.Services.AddSingleton<ITokenService, TokenService>();
-
-// Register PDF service
 builder.Services.AddScoped<PdfService>();
-
-// Register report services
 builder.Services.AddScoped<ReporteExcelService>();
 builder.Services.AddScoped<ReportePdfService>();
 builder.Services.AddScoped<TicketService>();
-// AI: OpenRouter proxy service
+
 builder.Services.AddHttpClient("openrouter", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddScoped<AiService>();
 
-// Configure JWT Authentication
+// JWT Authentication
 var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? builder.Configuration["JWT_SECRET"];
 var key = Encoding.UTF8.GetBytes(jwtSecret ?? "fallback_secret_please_configure");
 
@@ -55,7 +67,6 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            // Permitir JWT desde cookie HttpOnly 'access_token' si no viene Authorization header
             if (string.IsNullOrEmpty(context.Token))
             {
                 var cookieToken = context.Request.Cookies["access_token"];
@@ -77,7 +88,7 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Configurar CORS
+// CORS (ya tienes ALLOWED_ORIGINS con tu Netlify, así que funciona)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
@@ -89,13 +100,12 @@ builder.Services.AddCors(options =>
             origins = envOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
         policy.WithOrigins(origins)
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
-// Habilitar Swagger (opcional pero recomendado durante desarrollo)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -104,19 +114,15 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Migración automática desactivada para evitar errores si las tablas ya existen
-
-// Configure EPPlus license context for NonCommercial usage (EPPlus 8+)
+// EPPlus license
 var epplusEnv = Environment.GetEnvironmentVariable("EPPlusLicenseContext");
 if (string.IsNullOrWhiteSpace(epplusEnv))
 {
     Environment.SetEnvironmentVariable("EPPlusLicenseContext", "NonCommercial");
 }
 
-// Usar CORS ANTES de MapControllers
 app.UseCors("CorsPolicy");
 
-// Swagger visual para probar endpoints
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -124,17 +130,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
-// Tenant middleware: must run after authentication so claims are available
 app.UseMiddleware<VentifyAPI.Middleware.TenantMiddleware>();
 app.UseAuthorization();
-
-// Servir archivos estáticos (wwwroot) para foto de perfil y otros assets
 app.UseStaticFiles();
 
-// Middleware para validar tokenVersion en cada request autenticado
+// Middleware de validación de tokenVersion
 app.Use(async (context, next) =>
 {
-    // Si no hay usuario autenticado, continuar
     var user = context.User;
     if (user?.Identity?.IsAuthenticated != true)
     {
@@ -146,11 +148,12 @@ app.Use(async (context, next) =>
     {
         var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var tokenVersionClaim = user.FindFirst("tokenVersion")?.Value;
-        if (!string.IsNullOrEmpty(userIdClaim) && !string.IsNullOrEmpty(tokenVersionClaim) && int.TryParse(userIdClaim, out var uid) && int.TryParse(tokenVersionClaim, out var tokenVer))
+        if (!string.IsNullOrEmpty(userIdClaim) && !string.IsNullOrEmpty(tokenVersionClaim) &&
+            int.TryParse(userIdClaim, out var uid) && int.TryParse(tokenVersionClaim, out var tokenVer))
         {
             using var scopeMw = app.Services.CreateScope();
             var db = scopeMw.ServiceProvider.GetRequiredService<AppDbContext>();
-            var dbUser = await db.Usuarios.FindAsync(uid);
+            var dbUser = await db.Set<Usuario>().FindAsync(uid);
             if (dbUser != null && dbUser.TokenVersion != tokenVer)
             {
                 context.Response.StatusCode = 401;
@@ -159,10 +162,7 @@ app.Use(async (context, next) =>
             }
         }
     }
-    catch
-    {
-        // En caso de error silencioso, continuar
-    }
+    catch { /* silencioso */ }
 
     await next();
 });

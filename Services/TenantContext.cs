@@ -1,5 +1,3 @@
-using VentifyAPI.Data;
-
 namespace VentifyAPI.Services
 {
     public interface ITenantContext
